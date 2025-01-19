@@ -1,45 +1,56 @@
-# Trading Assistant
+# Trading Assistant 프로젝트
 
 ## **프로젝트 개요**
-Trading Assistant는 주식 계좌 관리와 매매 신호 분석을 돕기 위한 도구입니다.
-
-이 프로그램은 다음과 같은 주요 기능을 제공합니다:
-- **데이터 수집 및 갱신**: 주식 데이터를 자동으로 수집하고 최신 상태로 유지.
-- **기술적 지표 계산**: 이동평균선, RSI, 볼린저 밴드 등.
-- **매매 신호 생성**: 골든 크로스, 데드 크로스 등.
-- **알림 시스템**: Discord를 통해 매매 신호 및 급등/급락 알림.
-- **데이터 시각화**: 차트와 위젯을 통한 분석 결과 표시.
+Trading Assistant는 주식 계좌 관리, 매매 신호 생성, 데이터 시각화 및 실시간 알림을 제공하는 통합 애플리케이션입니다. Flask 웹 애플리케이션과 PyQt 위젯을 활용해 사용자가 계좌 데이터를 입력하고 시각적으로 분석할 수 있도록 설계되었습니다.
 
 ---
 
 ## **기능 설명**
 
-### 1. 데이터 수집 및 갱신 (`data`)
-- **`data_loader.py`**: 초기 주식 데이터 수집 및 로컬 저장.
-- **`data_updater.py`**: 기존 데이터를 최신 데이터로 갱신.
+### 1. 데이터 관리 (`data/`)
+- **`data_loader.py`**:
+  - `yfinance` 및 `FinanceDataReader`를 사용하여 주식 데이터를 수집하고 로컬에 저장.
+  - 글로벌 및 한국 시장 데이터를 모두 지원.
+- **`data_updater.py`**:
+  - 기존 데이터를 갱신하여 최신 상태로 유지.
+  - 데이터 병합 및 중복 제거 기능 포함.
 
-### 2. 분석 및 매매 신호 생성 (`analysis`)
-- **`indicators.py`**: 기술적 지표 계산.
-  - 이동평균선(MA), 볼린저 밴드, RSI.
-- **`signal_generator.py`**: 매매 신호 생성.
-  - 골든 크로스, 데드 크로스, 급등/급락 신호 등.
+### 2. 기술적 분석 및 신호 생성 (`analysis/`)
+- **`indicators.py`**:
+  - 이동평균선, 볼린저 밴드, RSI, OBV 계산.
+- **`signal_generator.py`**:
+  - 골든 크로스, 데드 크로스, 급등/급락 신호 생성.
+  - 추가적인 기술적 지표 확장 가능.
 
-### 3. 알림 시스템 (`notifications`)
-- **`notifier.py`**: Discord를 통해 알림 전송.
-  - 모바일 및 데스크톱에서 알림 확인 가능.
+### 3. 알림 시스템 (`notifications/`)
+- **`notifier.py`**:
+  - Discord 웹훅을 통해 실시간 알림 전송.
+  - 이미지 및 하이퍼링크를 포함한 알림 포맷 지원.
+- **`test_noti.py`**:
+  - 알림 시스템의 기능을 테스트.
 
-### 4. 데이터 시각화 (`visualization`)
-- **`charts.py`**: 분석 데이터를 기반으로 차트 생성.
-- **`widget.py`**: 데스크톱 위젯을 통해 실시간 데이터 표시.
+### 4. 데이터 시각화 (`visualization/`)
+- **`charts.py`**:
+  - Plotly를 사용한 대화형 차트 생성.
+  - 계좌 성장 그래프 및 기술적 지표 시각화.
+- **`widget.py`**:
+  - PyQt 기반의 데스크톱 위젯 구현.
+  - 보유 종목 정보를 실시간으로 표시.
 
-### 5. 설정 관리 (`config.py`)
-- Discord 웹훅 URL, 데이터 경로, 알림 조건 등 설정.
+### 5. 웹 애플리케이션 (`app.py`)
+- Flask를 사용한 웹 애플리케이션 구현.
+- 주요 기능:
+  - 계좌 데이터 입력 및 저장.
+  - 그래프를 통해 계좌 성장 데이터 시각화.
+  - 보유 종목 목록 및 실시간 수익률 표시.
 
-### 6. 테스트 (`tests`)
-- 각 모듈의 기능 테스트:
-  - `test_data.py`: 데이터 수집 및 갱신 테스트.
-  - `test_signals.py`: 기술적 지표 및 신호 생성 테스트.
-  - `test_notifier.py`: 알림 전송 테스트.
+### 6. 테스트 (`tests/`)
+- **`test_data.py`**:
+  - 데이터 수집 및 갱신 로직 검증.
+- **`test_signal.py`**:
+  - 매매 신호 생성 기능 테스트.
+- **`test_noti.py`**:
+  - 알림 시스템 테스트.
 
 ---
 
@@ -57,64 +68,53 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. **Discord 웹훅 설정**
-1. Discord 서버에서 웹훅 URL을 생성.
-2. `config.py`에 웹훅 URL을 설정:
-   ```python
-   DISCORD_WEBHOOK_URL = "YOUR_DISCORD_WEBHOOK_URL"
-   ```
-
-### 4. **프로그램 실행**
+### 3. **Flask 앱 실행**
 ```bash
-python main.py
+python app.py
 ```
+- 브라우저에서 `http://127.0.0.1:5000/`로 접속.
 
 ---
 
 ## **디렉터리 구조**
 ```
-trading_assistant/
-├── main.py                  # 메인 실행 파일
-├── config.py                # 설정 파일 (API 키, 사용자 환경설정 등)
+quant/
+├── app.py                  # Flask 애플리케이션 메인 파일
 ├── data/
-│   ├── data_loader.py       # 데이터 수집 및 전처리
-│   ├── data_updater.py      # 실시간 데이터 갱신
+│   ├── data_loader.py      # 데이터 수집
+│   ├── data_updater.py     # 데이터 갱신
+│   └── account_data.csv    # 계좌 데이터 저장
 ├── analysis/
-│   ├── indicators.py        # 기술적 지표 계산 (이동 평균선, RSI 등)
-│   ├── signal_generator.py  # 매수/매도 신호 생성
+│   ├── indicators.py       # 기술적 지표 계산
+│   ├── signal_generator.py # 매매 신호 생성
 ├── notifications/
-│   ├── notifier.py          # 알림 기능 구현 (Discord 알림)
+│   ├── notifier.py         # 알림 시스템 구현
+│   ├── test_noti.py        # 알림 테스트
 ├── visualization/
-│   ├── charts.py            # 데이터 시각화 (차트, 계좌 변동 그래프 등)
-│   ├── widget.py            # 데스크톱 위젯 구현
+│   ├── charts.py           # 데이터 시각화
+│   ├── widget.py           # PyQt 위젯
 ├── tests/
-│   ├── test_data.py         # 데이터 관련 테스트
-│   ├── test_signals.py      # 신호 생성 테스트
-│   ├── test_notifier.py     # 알림 기능 테스트
-├── requirements.txt         # 프로젝트 의존성 목록
-└── README.md                # 프로젝트 설명 파일
+│   ├── test_data.py        # 데이터 관리 테스트
+│   ├── test_signal.py      # 신호 생성 테스트
+├── templates/
+│   └── index.html          # Flask HTML 템플릿
+├── static/
+│   ├── script.js           # 클라이언트 스크립트
+├── config.py               # 환경 설정 파일
+├── requirements.txt        # Python 의존성 파일
+└── README.md               # 프로젝트 설명 파일
 ```
-
----
-
-## **라이브러리 의존성**
-- `pandas`: 데이터 처리.
-- `numpy`: 수치 연산.
-- `matplotlib`: 데이터 시각화.
-- `plotly`: 대화형 차트 생성.
-- `requests`: API 요청 및 웹훅 전송.
-- `plyer`: 데스크톱 알림.
-- `yfinance`: 주식 데이터 수집.
 
 ---
 
 ## **향후 개선 방향**
 1. **알림 시스템 확장**:
-   - 이메일 또는 SMS 알림 추가.
-2. **실시간 데이터 처리**:
-   - WebSocket을 활용한 실시간 주식 데이터 스트리밍.
-3. **추가 기술적 지표 지원**:
-   - MACD, 스토캐스틱 등 추가.
-4. **UI 개선**:
-   - PyQt를 활용한 데스크톱 GUI 개발.
-
+   - 이메일 및 SMS 알림 추가.
+   - 사용자 정의 조건 기반 알림.
+2. **실시간 데이터 스트리밍**:
+   - WebSocket을 활용하여 실시간 주식 데이터 반영.
+3. **데이터 시각화 개선**:
+   - 추가 지표(MACD, 스토캐스틱 등)를 차트에 추가.
+   - 테이블과 그래프 간 상호작용 지원.
+4. **사용자 인증 및 다중 계정 지원**:
+   - 사용자별 데이터 분리 및 관리.
