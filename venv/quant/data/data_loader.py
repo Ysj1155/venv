@@ -62,3 +62,34 @@ def load_multiple_tickers(tickers, start_date, end_date, save_path="data/", mark
         except Exception as e:
             print(f"Error loading data for {ticker}: {e}")
     return data_frames
+
+def load_exchange_rate_data(currency_pair, start_date, end_date, save_path="data/"):
+    """
+    특정 통화쌍의 환율 데이터를 로드하고 저장합니다.
+
+    Args:
+        currency_pair (str): 예: 'USD/KRW', 'USD/JPY'.
+        start_date (str): 데이터 시작 날짜 (예: '2020-01-01').
+        end_date (str): 데이터 종료 날짜 (예: '2023-12-31').
+        save_path (str): 저장 경로.
+
+    Returns:
+        pd.DataFrame: 로드된 데이터프레임.
+    """
+    print(f"Loading exchange rate data for {currency_pair} from {start_date} to {end_date}...")
+
+    try:
+        # 환율 데이터 로드
+        data = fdr.DataReader(currency_pair, start_date, end_date)
+    except Exception as e:
+        print(f"Failed to load exchange rate data for {currency_pair}: {e}")
+        return pd.DataFrame()
+
+    # 저장 경로 생성
+    os.makedirs(save_path, exist_ok=True)
+    file_path = os.path.join(save_path, f"{currency_pair.replace('/', '_')}.csv")
+
+    # CSV 저장
+    data.to_csv(file_path)
+    print(f"Exchange rate data saved to {file_path}")
+    return data

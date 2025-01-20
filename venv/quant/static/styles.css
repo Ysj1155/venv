@@ -1,0 +1,42 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    padding: 0;
+    background-color: #f4f4f9;
+}
+
+h1 {
+    text-align: center;
+}
+
+#pie-chart, #profit-chart {
+    margin: 20px auto;
+    width: 80%;
+    height: 400px;
+}
+
+form {
+    margin: 20px auto;
+    width: 80%;
+    text-align: left;
+    padding: 10px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+
+form label {
+    display: inline-block;
+    width: 150px;
+    margin-right: 10px;
+    text-align: right;
+}
+
+form input, form button {
+    margin-bottom: 10px;
+}
+
+form button {
+    display: block;
+    margin: 0 auto;
+}
