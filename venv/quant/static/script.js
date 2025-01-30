@@ -1,17 +1,19 @@
 document.addEventListener("DOMContentLoaded", function () {
-    // 원형 다이어그램 Placeholder 데이터
-    const pieData = {
-        labels: ["Cash", "Stock A", "Stock B", "Stock C"],
-        values: [40, 30, 20, 10],
-        type: "pie"
-    };
+    // 원형 다이어그램 데이터 로드
+    fetch("/get_pie_chart_data")
+        .then(response => response.json())
+        .then(data => {
+            Plotly.newPlot("pie-chart", [{
+                labels: data.labels,
+                values: data.values,
+                type: "pie"
+            }]);
 
-    // 원형 다이어그램 생성
-    Plotly.newPlot("pie-chart", [pieData]);
-
-    // 총액 계산 및 표시
-    const totalValue = pieData.values.reduce((acc, val) => acc + val, 0);
-    document.getElementById("total-value").innerText = `Total Value: $${totalValue}`;
+            // 총액 계산 및 표시
+            const totalValue = data.values.reduce((acc, val) => acc + val, 0);
+            document.getElementById("total-value").innerText = `Total Value: $${totalValue}`;
+        })
+        .catch(error => console.error("Error fetching pie chart data:", error));
 
     // 전체 자산 수익률 그래프 데이터 로드
     fetch("/get_graph_data")
