@@ -1,65 +1,86 @@
 from flask import Flask, render_template, request, jsonify
-from forex_python.converter import CurrencyRates
 import pandas as pd
 import os, datetime
+import utils
 
 app = Flask(__name__)
 DATA_FILE = "data/account_data.csv"
 
-# 데이터 초기화
+# 데이터 초기화 (account_data.csv 파일이 없으면 생성)
 if not os.path.exists(DATA_FILE):
     pd.DataFrame(columns=["ticker", "price", "quantity", "purchase_time"]).to_csv(DATA_FILE, index=False)
 
 @app.route("/")
 def index():
-    data = pd.read_csv(DATA_FILE)
+    """
+    메인 페이지 렌더링
+    account_data.csv에서 데이터를 불러와 웹 페이지에 표시
+    """
+    encoding = detect_encoding(DATA_FILE)
+    data = pd.read_csv(DATA_FILE, encoding=encoding)
     return render_template("index.html", stocks=data.to_dict(orient="records"))
+
+@app.route("/get_pie_chart_data", methods=["GET"])
+def get_pie_chart_data():
+    """
+    원형 차트 데이터를 반환하는 엔드포인트
+    """
+    encoding = utils.detect_encoding(DATA_FILE)  # ✅ utils.detect_encoding() 사용
+    data = pd.read_csv(DATA_FILE, encoding=encoding)
+
+    # NaN 값을 '예수금'으로 대체
+    data["ticker"] = data["ticker"].fillna("예수금")
+
+    # 포트폴리오 비율 계산
+    total_value = (data["price"] * data["quantity"]).sum()
+    if total_value == 0:
+        return jsonify({"labels": [], "values": []})
+    data["allocation"] = (data["price"] * data["quantity"]) / total_value * 100  # 퍼센트 계산
+
+    return jsonify({
+        "labels": data["ticker"].tolist(),
+        "values": data["allocation"].tolist(),
+        "total_value": total_value  # 원화 기준 총 금액 반환
+    })
 
 @app.route("/add_stock", methods=["POST"])
 def add_stock():
+    """
+    새로운 주식 정보를 추가하는 엔드포인트
+    사용자가 입력한 티커, 가격, 수량, 구매 날짜를 받아 저장
+    """
     ticker = request.form["ticker"]
-    price = float(request.form["price"])  # float로 변환
+    price = float(request.form["price"])  # 매입단가
     quantity = int(request.form["quantity"])
     purchase_time = request.form["purchase_time"]
 
-    new_data = pd.DataFrame([{"ticker": ticker, "price": price, "quantity": quantity, "purchase_time": purchase_time}])
-    new_data.to_csv(DATA_FILE, mode="a", header=False, index=False)
+    # 현재 주가 가져오기 (yfinance 또는 다른 API 활용)
+    current_price = get_current_price(ticker)
+    current_value = current_price * quantity  # 평가금액
+
+    # 티커 변환: "GOOGL; 알파벳 A" 형식 유지
+    if ticker.isalpha():  # 미국 및 글로벌 주식
+        full_name = get_stock_name(ticker)
+    else:  # 한국 주식
+        full_name = get_kr_stock_name(ticker)
+
+    ticker = f"{ticker}; {full_name}"
+
+    # 새로운 데이터를 데이터 파일에 추가
+    new_data = pd.DataFrame([{
+        "ticker": ticker,
+        "purchase_price": price,
+        "quantity": quantity,
+        "purchase_time": purchase_time,
+        "current_price": current_price,
+        "current_value": current_value
+    }])
+    print("New Data to be Saved:", new_data)  # 콘솔에서 데이터 확인
+    new_data.to_csv(DATA_FILE, mode="a", header=False, index=False, encoding="utf-8-sig")
 
     return jsonify({"success": True, "message": "Stock added successfully!"})
 
-@app.route("/get_graph_data", methods=["GET"])
-def get_graph_data():
-    data = pd.read_csv(DATA_FILE)
-    data["total_value"] = data["price"] * data["quantity"]
-    cumulative_profit = data["total_value"].cumsum().tolist()
-    return jsonify({"dates": data["purchase_time"].tolist(), "profits": cumulative_profit})
-
-@app.route("/get_exchange_rate", methods=["GET"])
-def get_exchange_rate():
-    currency_rates = CurrencyRates()
-    base_currency = "USD"
-    target_currency = "KRW"
-    rate = currency_rates.get_rate(base_currency, target_currency)
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return jsonify({"timestamp": timestamp, "rate": rate})
-
-@app.route("/get_exchange_rate_data", methods=["GET"])
-def get_exchange_rate_data():
-    """
-    환율 데이터를 반환하는 엔드포인트
-    """
-    currency_pair = "USD/KRW"  # 예: USD/KRW
-    file_path = f"data/{currency_pair.replace('/', '_')}.csv"
-
-    if not os.path.exists(file_path):
-        return jsonify({"error": "Exchange rate data not found"}), 404
-
-    # CSV 파일 로드
-    data = pd.read_csv(file_path)
-    return jsonify({
-        "dates": data["Date"].tolist(),
-        "rates": data["Close"].tolist()
-    })
 
 if __name__ == "__main__":
+    # Flask 애플리케이션 실행
     app.run(debug=True)
