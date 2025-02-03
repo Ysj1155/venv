@@ -16,7 +16,7 @@ def index():
     메인 페이지 렌더링
     account_data.csv에서 데이터를 불러와 웹 페이지에 표시
     """
-    encoding = detect_encoding(DATA_FILE)
+    encoding = utils.detect_encoding(DATA_FILE)
     data = pd.read_csv(DATA_FILE, encoding=encoding)
     return render_template("index.html", stocks=data.to_dict(orient="records"))
 
@@ -25,8 +25,19 @@ def get_pie_chart_data():
     """
     원형 차트 데이터를 반환하는 엔드포인트
     """
-    encoding = utils.detect_encoding(DATA_FILE)  # ✅ utils.detect_encoding() 사용
+    encoding = utils.detect_encoding(DATA_FILE)
     data = pd.read_csv(DATA_FILE, encoding=encoding)
+
+    # ✅ 컬럼명이 '매입단가'일 경우 'price'로 변경
+    if "매입단가" in data.columns and "price" not in data.columns:
+        data.rename(columns={"매입단가": "price"}, inplace=True)
+
+    if "잔고수량" in data.columns and "quantity" not in data.columns:
+        data.rename(columns={"잔고수량": "quantity"}, inplace=True)
+
+    # ✅ 컬럼명이 '종목명'일 경우 'ticker'로 변경
+    if "종목명" in data.columns and "ticker" not in data.columns:
+        data.rename(columns={"종목명": "ticker"}, inplace=True)
 
     # NaN 값을 '예수금'으로 대체
     data["ticker"] = data["ticker"].fillna("예수금")
@@ -42,6 +53,7 @@ def get_pie_chart_data():
         "values": data["allocation"].tolist(),
         "total_value": total_value  # 원화 기준 총 금액 반환
     })
+
 
 @app.route("/add_stock", methods=["POST"])
 def add_stock():
