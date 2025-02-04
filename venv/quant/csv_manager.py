@@ -1,66 +1,75 @@
 import os
 import pandas as pd
-from datetime import datetime
 
-# 데이터 저장 경로
+# 데이터 경로
 DATA_DIR = "data"
 MERGED_FILE = os.path.join(DATA_DIR, "merged_data.csv")
 
-def load_template_format(template_file):
-    """ 기준이 되는 템플릿 CSV 파일의 컬럼명을 가져옴 """
-    template_df = pd.read_csv(template_file, nrows=5)  # 일부만 읽어서 형식 확인
-    expected_columns = list(template_df.columns)
-    return expected_columns
+# 컬럼 매핑 (한글 → 영어)
+COLUMN_MAP = {
+    "구분": "type",
+    "계좌번호": "account_number",
+    "종목명": "ticker",
+    "평가손익": "profit_loss",
+    "손익률": "profit_rate",
+    "잔고수량": "quantity",
+    "매입단가": "purchase_price",
+    "매입금액": "purchase_amount",
+    "평가금액": "evaluation_amount",
+    "평가비중": "evaluation_ratio",
+    "날짜": "date"
+}
 
-def convert_and_merge_csv(new_csv_path, template_file):
-    """
-    새로운 CSV 데이터를 기준 형식에 맞춰 변환 후 기존 데이터와 병합하는 함수
-    """
-    if not os.path.exists(new_csv_path):
-        print(f"❌ 파일을 찾을 수 없음: {new_csv_path}")
+
+def preprocess_csv(file_path):
+    """ CSV 파일을 정리하고 컬럼을 변환하는 함수 """
+    if not os.path.exists(file_path):
+        print(f"❌ 파일 없음: {file_path}")
+        return None
+
+    data = pd.read_csv(file_path, encoding="utf-8-sig")
+    data = data[list(COLUMN_MAP.keys())]  # 필요한 컬럼 선택
+    data.rename(columns=COLUMN_MAP, inplace=True)  # 컬럼명 변환
+
+    return data
+
+
+def merge_csv(new_csv_path):
+    """ 새로운 CSV 데이터를 기존 데이터와 병합 """
+    new_data = preprocess_csv(new_csv_path)
+    if new_data is None:
         return
 
-    # 날짜 추출 (예: "01_30.csv" → "2025-01-30")
-    file_name = os.path.basename(new_csv_path)
-    date_str = file_name.replace(".csv", "").replace("_", "-")
-    formatted_date = f"2025-{date_str}"  # 연도는 2025년으로 고정
-
-    # 템플릿 기준 컬럼 로드
-    expected_columns = load_template_format(template_file)
-
-    # 새로운 데이터 불러오기
-    new_data = pd.read_csv(new_csv_path)
-
-    # 기준 컬럼을 맞추기 위해 부족한 컬럼은 NaN으로 추가
-    for col in expected_columns:
-        if col not in new_data.columns:
-            new_data[col] = None  # 없는 컬럼은 NaN 값으로 채움
-
-    # 불필요한 컬럼 제거 (템플릿에 없는 컬럼은 제거)
-    new_data = new_data[expected_columns]
-
-    # 날짜 컬럼 추가
-    new_data["Date"] = formatted_date
-
-    # 기존 병합된 데이터 로드 (있으면)
     if os.path.exists(MERGED_FILE):
-        merged_data = pd.read_csv(MERGED_FILE)
+        merged_data = pd.read_csv(MERGED_FILE, encoding="utf-8-sig")
         merged_data = pd.concat([merged_data, new_data], ignore_index=True)
     else:
         merged_data = new_data
 
-    # 중복 제거
     merged_data.drop_duplicates(inplace=True)
-
-    # 최신 데이터 저장
     merged_data.to_csv(MERGED_FILE, index=False, encoding="utf-8-sig")
     print(f"✅ 데이터 병합 완료: {MERGED_FILE}")
 
-# 실행 예제
-if __name__ == "__main__":
-    template_file = os.path.join(DATA_DIR, "02_03.csv")  # 최신 기준 템플릿 파일
 
-    # 예제: 1월 30일 데이터 추가
-    new_csv_file = os.path.join(DATA_DIR, "01_30.csv")
+def add_stock_to_csv(ticker, price, quantity, purchase_time):
+    """ 주식을 CSV 파일에 추가하는 함수 """
+    new_data = pd.DataFrame([{
+        "ticker": ticker,
+        "purchase_price": price,
+        "quantity": quantity,
+        "purchase_time": purchase_time,
+        "evaluation_amount": price * quantity
+    }])
 
-    convert_and_merge_csv(new_csv_file, template_file)
+    if os.path.exists(MERGED_FILE):
+        new_data.to_csv(MERGED_FILE, mode="a", header=False, index=False, encoding="utf-8-sig")
+    else:
+        new_data.to_csv(MERGED_FILE, index=False, encoding="utf-8-sig")
+
+
+def get_latest_data():
+    """ 최신 데이터를 불러오는 함수 """
+    if not os.path.exists(MERGED_FILE):
+        return pd.DataFrame()
+
+    return pd.read_csv(MERGED_FILE, encoding="utf-8-sig")

@@ -1,46 +1,25 @@
 from flask import Flask, render_template, request, jsonify
 import pandas as pd
-import os, datetime
-import utils
+import utils, csv_manager
 
 app = Flask(__name__)
-DATA_FILE = "data/account_data.csv"
-
-# 데이터 초기화 (account_data.csv 파일이 없으면 생성)
-if not os.path.exists(DATA_FILE):
-    pd.DataFrame(columns=["ticker", "price", "quantity", "purchase_time"]).to_csv(DATA_FILE, index=False)
 
 @app.route("/")
 def index():
-    """
-    메인 페이지 렌더링
-    account_data.csv에서 데이터를 불러와 웹 페이지에 표시
-    """
-    encoding = utils.detect_encoding(DATA_FILE)
-    data = pd.read_csv(DATA_FILE, encoding=encoding)
+    """ 메인 페이지 렌더링 """
+    data = utils.load_data()
     return render_template("index.html", stocks=data.to_dict(orient="records"))
 
 @app.route("/get_pie_chart_data", methods=["GET"])
 def get_pie_chart_data():
-    """
-    원형 차트 데이터를 반환하는 엔드포인트
-    """
-    encoding = utils.detect_encoding(DATA_FILE)
-    data = pd.read_csv(DATA_FILE, encoding=encoding)
+    """ 최신 날짜 기준으로 원형 차트 데이터를 반환하는 엔드포인트 """
+    data = utils.load_data()
+    return jsonify(data)
 
-    # ✅ 컬럼명이 '매입단가'일 경우 'price'로 변경
-    if "매입단가" in data.columns and "price" not in data.columns:
-        data.rename(columns={"매입단가": "price"}, inplace=True)
-
-    if "잔고수량" in data.columns and "quantity" not in data.columns:
-        data.rename(columns={"잔고수량": "quantity"}, inplace=True)
-
-    # ✅ 컬럼명이 '종목명'일 경우 'ticker'로 변경
-    if "종목명" in data.columns and "ticker" not in data.columns:
-        data.rename(columns={"종목명": "ticker"}, inplace=True)
-
-    # NaN 값을 '예수금'으로 대체
-    data["ticker"] = data["ticker"].fillna("예수금")
+    # 최신 날짜 필터링
+    data["Date"] = pd.to_datetime(data["Date"])  # 날짜 데이터 변환
+    latest_date = data["Date"].max()  # 가장 최신 날짜 찾기
+    latest_data = data[data["Date"] == latest_date]  # 최신 날짜의 데이터만 선택
 
     # 포트폴리오 비율 계산
     total_value = (data["price"] * data["quantity"]).sum()
@@ -52,6 +31,34 @@ def get_pie_chart_data():
         "labels": data["ticker"].tolist(),
         "values": data["allocation"].tolist(),
         "total_value": total_value  # 원화 기준 총 금액 반환
+    })
+
+
+@app.route("/get_total_value_data", methods=["GET"])
+def get_total_value_data():
+    """
+    날짜별 총 평가금액 데이터를 반환하는 엔드포인트
+    """
+    encoding = utils.detect_encoding(DATA_FILE)
+    data = pd.read_csv(DATA_FILE, encoding=encoding)
+
+    # ✅ "Date" 컬럼이 없을 경우 오류 반환
+    if "Date" not in data.columns or "평가금액" not in data.columns:
+        return jsonify({"error": "CSV 파일에 'Date' 또는 '평가금액' 컬럼이 없습니다.", "columns": data.columns.tolist()}), 400
+
+    # ✅ "Date" 컬럼을 날짜 형식으로 변환
+    data["Date"] = pd.to_datetime(data["Date"])
+
+    # ✅ "평가금액"을 숫자로 변환 (쉼표 제거 후 변환)
+    data["평가금액"] = data["평가금액"].astype(str).str.replace(",", "").astype(float)
+
+    # ✅ 날짜별 총 평가금액 계산
+    total_value_by_date = data.groupby("Date")["평가금액"].sum().reset_index()
+
+    # ✅ JSON 응답 형식으로 변환
+    return jsonify({
+        "dates": total_value_by_date["Date"].astype(str).tolist(),
+        "total_values": total_value_by_date["평가금액"].tolist()
     })
 
 
