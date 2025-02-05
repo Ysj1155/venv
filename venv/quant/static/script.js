@@ -15,6 +15,27 @@ document.addEventListener("DOMContentLoaded", function () {
         .catch(error => console.error("Error fetching pie chart data:", error));
     });
 
+document.addEventListener("DOMContentLoaded", function () {
+    // 날짜별 계좌 총 평가금액 그래프
+    fetch("/get_total_value_data")
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error("Error fetching total value data:", data.error);
+                return;
+            }
+
+            Plotly.newPlot("total-value-chart", [{
+                x: data.dates,
+                y: data.total_values,
+                type: "scatter",
+                mode: "lines+markers",
+                name: "Total Account Value"
+            }]);
+        })
+        .catch(error => console.error("Error fetching total value data:", error));
+});
+
     // 전체 자산 수익률 그래프 데이터 로드
     fetch("/get_graph_data")
         .then(response => response.json())

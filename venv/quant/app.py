@@ -13,7 +13,7 @@ def index():
 @app.route("/get_pie_chart_data", methods=["GET"])
 def get_pie_chart_data():
     """ 최신 날짜 기준으로 원형 차트 데이터를 반환하는 엔드포인트 """
-    data = utils.load_data()
+    data = utils.get_pie_chart_data()
     return jsonify(data)
 
     # 최신 날짜 필터링

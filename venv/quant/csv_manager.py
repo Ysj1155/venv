@@ -30,7 +30,9 @@ def preprocess_csv(file_path):
     data = pd.read_csv(file_path, encoding="utf-8-sig")
     data = data[list(COLUMN_MAP.keys())]  # 필요한 컬럼 선택
     data.rename(columns=COLUMN_MAP, inplace=True)  # 컬럼명 변환
-
+    # ✅ "type"이 "외화예수금" 또는 "예수금"이면 "ticker" 값을 해당 이름으로 설정
+    data.loc[data["type"] == "외화예수금", "ticker"] = "외화예수금"
+    data.loc[data["type"] == "예수금", "ticker"] = "예수금"
     return data
 
 
@@ -73,3 +75,18 @@ def get_latest_data():
         return pd.DataFrame()
 
     return pd.read_csv(MERGED_FILE, encoding="utf-8-sig")
+
+def get_total_value_by_date():
+    """ 날짜별 평가금액 총합을 계산하는 함수 """
+    if not os.path.exists(MERGED_FILE):
+        return pd.DataFrame()
+
+    data = pd.read_csv(MERGED_FILE, encoding="utf-8-sig")
+    if "date" not in data.columns or "evaluation_amount" not in data.columns:
+        return pd.DataFrame()
+
+    data["date"] = pd.to_datetime(data["date"])  # 날짜 변환
+    data["evaluation_amount"] = data["evaluation_amount"].astype(str).str.replace(",", "").astype(float)
+
+    total_value_by_date = data.groupby("date")["evaluation_amount"].sum().reset_index()
+    return total_value_by_date
