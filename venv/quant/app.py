@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify
+import FinanceDataReader as fdr
 import pandas as pd
 import utils, csv_manager
 
@@ -9,6 +10,32 @@ def index():
     """ 메인 페이지 렌더링 """
     data = utils.load_data()
     return render_template("index.html", stocks=data.to_dict(orient="records"))
+
+
+def get_usd_krw_exchange_rate():
+    """USD/KRW 환율 데이터를 가져와 JSON 형태로 반환하는 함수"""
+    df = fdr.DataReader('USD/KRW', '2020')  # 2020년부터 현재까지 데이터 가져오기
+    df = df[['Close']].reset_index()  # 'Date' 열 포함
+    df.rename(columns={'Close': 'exchange_rate', 'Date': 'date'}, inplace=True)  # Date 컬럼 유지
+    return df
+
+
+@app.route("/get_exchange_rate_data", methods=["GET"])
+def get_exchange_rate_data():
+    """USD/KRW 환율 데이터를 JSON 형식으로 반환하는 엔드포인트"""
+    try:
+        data = get_usd_krw_exchange_rate()
+
+        if data.empty:
+            return jsonify({"error": "No exchange rate data available"}), 404
+
+        return jsonify({
+            "dates": data["date"].astype(str).tolist(),  # ✅ Date 컬럼 존재 확인 후 변환
+            "rates": data["exchange_rate"].tolist()
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/get_pie_chart_data", methods=["GET"])
 def get_pie_chart_data():
@@ -98,6 +125,29 @@ def add_stock():
     new_data.to_csv(DATA_FILE, mode="a", header=False, index=False, encoding="utf-8-sig")
 
     return jsonify({"success": True, "message": "Stock added successfully!"})
+
+
+@app.route("/get_graph_data", methods=["GET"])
+def get_graph_data():
+    """전체 포트폴리오 수익률 데이터를 JSON 형식으로 반환"""
+    try:
+        # 가상의 수익률 데이터 생성 (데이터가 없는 경우를 대비)
+        data = pd.DataFrame({
+            "date": pd.date_range(start="2024-01-01", periods=30, freq="D"),
+            "profit": [i * 0.5 for i in range(30)]  # 0.5%씩 증가하는 수익률 예제
+        })
+
+        return jsonify({
+            "dates": data["date"].astype(str).tolist(),
+            "profits": data["profit"].tolist()
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204  # 빈 응답 반환
 
 
 if __name__ == "__main__":
