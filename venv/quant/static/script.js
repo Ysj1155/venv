@@ -68,17 +68,27 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     // 폼 제출 처리
-    document.getElementById("stock-form").addEventListener("submit", function (event) {
-        event.preventDefault();
-        const formData = new FormData(event.target);
-        fetch("/add_stock", {
+    document.getElementById("watchlist-form").addEventListener("submit", function(event) {
+    event.preventDefault();
+    const ticker = document.getElementById("ticker").value.trim();
+
+    if (ticker) {
+        fetch("/add_watchlist", {
             method: "POST",
-            body: formData
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ticker: ticker })
         })
         .then(response => response.json())
         .then(data => {
-            alert(data.message);
-            location.reload();
+            if (data.error) {
+                alert(data.error);
+            } else {
+                const listItem = document.createElement("li");
+                listItem.textContent = ticker;
+                document.getElementById("watchlist").appendChild(listItem);
+                document.getElementById("ticker").value = "";
+            }
         });
-    });
+    }
+});
 });

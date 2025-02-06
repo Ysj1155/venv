@@ -63,9 +63,7 @@ def get_pie_chart_data():
 
 @app.route("/get_total_value_data", methods=["GET"])
 def get_total_value_data():
-    """
-    날짜별 총 평가금액 데이터를 반환하는 엔드포인트
-    """
+    """ 날짜별 총 평가금액 데이터를 반환하는 엔드포인트 """
     encoding = utils.detect_encoding(DATA_FILE)
     data = pd.read_csv(DATA_FILE, encoding=encoding)
 
@@ -89,42 +87,18 @@ def get_total_value_data():
     })
 
 
-@app.route("/add_stock", methods=["POST"])
-def add_stock():
-    """
-    새로운 주식 정보를 추가하는 엔드포인트
-    사용자가 입력한 티커, 가격, 수량, 구매 날짜를 받아 저장
-    """
-    ticker = request.form["ticker"]
-    price = float(request.form["price"])  # 매입단가
-    quantity = int(request.form["quantity"])
-    purchase_time = request.form["purchase_time"]
+watchlist = []  # 관심 종목 리스트
+@app.route("/add_watchlist", methods=["POST"])
+def add_watchlist():
+    """관심 종목 리스트에 종목 추가"""
+    data = request.get_json()
+    ticker = data.get("ticker")
 
-    # 현재 주가 가져오기 (yfinance 또는 다른 API 활용)
-    current_price = get_current_price(ticker)
-    current_value = current_price * quantity  # 평가금액
-
-    # 티커 변환: "GOOGL; 알파벳 A" 형식 유지
-    if ticker.isalpha():  # 미국 및 글로벌 주식
-        full_name = get_stock_name(ticker)
-    else:  # 한국 주식
-        full_name = get_kr_stock_name(ticker)
-
-    ticker = f"{ticker}; {full_name}"
-
-    # 새로운 데이터를 데이터 파일에 추가
-    new_data = pd.DataFrame([{
-        "ticker": ticker,
-        "purchase_price": price,
-        "quantity": quantity,
-        "purchase_time": purchase_time,
-        "current_price": current_price,
-        "current_value": current_value
-    }])
-    print("New Data to be Saved:", new_data)  # 콘솔에서 데이터 확인
-    new_data.to_csv(DATA_FILE, mode="a", header=False, index=False, encoding="utf-8-sig")
-
-    return jsonify({"success": True, "message": "Stock added successfully!"})
+    if ticker and ticker not in watchlist:
+        watchlist.append(ticker)
+        return jsonify({"message": "Ticker added", "watchlist": watchlist})
+    else:
+        return jsonify({"error": "Invalid ticker or already exists"}), 400
 
 
 @app.route("/get_graph_data", methods=["GET"])
