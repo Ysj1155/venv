@@ -12,24 +12,31 @@
 
     <!-- 포트폴리오 분배 다이어그램 -->
     <h2>Portfolio Allocation</h2>
+    <p>이 다이어그램은 현재 보유 중인 주식 포트폴리오의 비율을 나타냅니다.</p>
     <div id="pie-chart"></div>
     <h3 id="total-value"></h3>
 
     <!-- 포트폴리오 자산 변화 그래프 -->
     <h2>Portfolio Performance</h2>
+    <p>총 계좌 평가금액 변화 그래프입니다.</p>
     <div id="profit-chart"></div>
 
     <!-- USD/KRW 환율 그래프 -->
     <h2>USD/KRW Exchange Rate</h2>
+    <p>실시간 환율 변동을 확인하세요.</p>
     <div id="exchange-rate-chart"></div>
 
     <!-- 관심 종목 추가 -->
     <h2>Watchlist</h2>
+    <p>관심 있는 종목을 추가하세요.</p>
     <form id="watchlist-form">
         <label for="ticker">Ticker:</label>
         <input type="text" id="ticker" name="ticker" required>
         <button type="submit">Add to Watchlist</button>
     </form>
+
+    <!-- 관심 종목 리스트 -->
+    <ul id="watchlist"></ul>
 
     <script src="/static/script.js"></script>
 </body>

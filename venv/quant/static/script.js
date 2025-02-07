@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", function () {
         })
         .catch(error => console.error("Error fetching pie chart data:", error));
 
-    // 날짜별 계좌 총 평가금액 그래프
+    // 포트폴리오 평가금액 그래프
     fetch("/get_total_value_data")
         .then(response => response.json())
         .then(data => {
@@ -23,7 +23,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
 
-            Plotly.newPlot("total-value-chart", [{
+            Plotly.newPlot("profit-chart", [{
                 x: data.dates,
                 y: data.total_values,
                 type: "scatter",
@@ -33,62 +33,64 @@ document.addEventListener("DOMContentLoaded", function () {
         })
         .catch(error => console.error("Error fetching total value data:", error));
 
-    // 전체 자산 수익률 그래프 데이터 로드
-    fetch("/get_graph_data")
-        .then(response => response.json())
-        .then(data => {
-            Plotly.newPlot("profit-chart", [{
-                x: data.dates,
-                y: data.profits,
-                type: "scatter",
-                mode: "lines+markers",
-                name: "Cumulative Profit"
-            }]);
-        });
-
     // 환율 추세 데이터 로드
     fetch("/get_exchange_rate_data")
     .then(response => response.json())
     .then(data => {
+        console.log("🚀 Fetched exchange rate data:", data);  // ✅ JSON 응답 확인
+
         if (data.error) {
             console.error("Exchange rate data error:", data.error);
             return;
         }
 
-        // USD/KRW 환율 그래프 생성
+        // ✅ NaN 값이 포함된 데이터 확인
+        data.rates.forEach((rate, index) => {
+            if (rate === null) {
+                console.warn(`⚠️ Null value detected at index ${index}, date: ${data.dates[index]}`);
+            }
+        });
+
+        let validDates = data.dates;
+        let validRates = data.rates;
+
+        console.log("📌 Final Data for Plotly:", validDates, validRates);
+
+        // ✅ Plotly 그래프 생성 (끊어지는 데이터 적용)
         Plotly.newPlot("exchange-rate-chart", [{
-            x: data.dates,
-            y: data.rates,
+            x: validDates,
+            y: validRates,
             type: "scatter",
             mode: "lines",
-            name: "USD/KRW Exchange Rate"
+            name: "USD/KRW Exchange Rate",
+            connectgaps: false  // ✅ None 값이 있으면 그래프를 끊어주도록 설정
         }]);
     })
     .catch(error => console.error("Error fetching exchange rate data:", error));
 
 
-    // 폼 제출 처리
+    // 관심 종목 추가 기능
     document.getElementById("watchlist-form").addEventListener("submit", function(event) {
-    event.preventDefault();
-    const ticker = document.getElementById("ticker").value.trim();
+        event.preventDefault();
+        const ticker = document.getElementById("ticker").value.trim();
 
-    if (ticker) {
-        fetch("/add_watchlist", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ticker: ticker })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                alert(data.error);
-            } else {
-                const listItem = document.createElement("li");
-                listItem.textContent = ticker;
-                document.getElementById("watchlist").appendChild(listItem);
-                document.getElementById("ticker").value = "";
-            }
-        });
-    }
-});
+        if (ticker) {
+            fetch("/add_watchlist", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ticker: ticker })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    const listItem = document.createElement("li");
+                    listItem.textContent = ticker;
+                    document.getElementById("watchlist").appendChild(listItem);
+                    document.getElementById("ticker").value = "";
+                }
+            });
+        }
+    });
 });

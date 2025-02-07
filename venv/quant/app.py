@@ -24,17 +24,22 @@ def get_usd_krw_exchange_rate():
 def get_exchange_rate_data():
     """USD/KRW 환율 데이터를 JSON 형식으로 반환하는 엔드포인트"""
     try:
-        data = get_usd_krw_exchange_rate()
+        df = fdr.DataReader('USD/KRW', '2022-01-01')  # 최근 데이터 가져오기
+        df = df[['Adj Close']].reset_index()  # 인덱스를 'date' 컬럼으로 변환
+        df.rename(columns={'Adj Close': 'exchange_rate', 'index': 'date'}, inplace=True)
 
-        if data.empty:
-            return jsonify({"error": "No exchange rate data available"}), 404
+        # ✅ 1월 1일 데이터 필터링하여 제거
+        df = df[~df["date"].dt.strftime('%m-%d').eq("01-01")]
 
         return jsonify({
-            "dates": data["date"].astype(str).tolist(),  # ✅ Date 컬럼 존재 확인 후 변환
-            "rates": data["exchange_rate"].tolist()
+            "dates": df["date"].astype(str).tolist(),
+            "rates": df["exchange_rate"].tolist()
         })
     except Exception as e:
+        print("\n❌ ERROR in get_exchange_rate_data:", str(e))  # 오류 메시지 출력
         return jsonify({"error": str(e)}), 500
+
+
 
 
 @app.route("/get_pie_chart_data", methods=["GET"])
@@ -99,6 +104,11 @@ def add_watchlist():
         return jsonify({"message": "Ticker added", "watchlist": watchlist})
     else:
         return jsonify({"error": "Invalid ticker or already exists"}), 400
+
+@app.route("/get_watchlist", methods=["GET"])
+def get_watchlist():
+    """현재 저장된 관심 종목 리스트 반환"""
+    return jsonify({"watchlist": watchlist})
 
 
 @app.route("/get_graph_data", methods=["GET"])
