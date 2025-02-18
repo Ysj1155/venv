@@ -1,20 +1,62 @@
 body {
+    background-color: #f8f9fa;
     font-family: Arial, sans-serif;
-    margin: 20px;
-    padding: 0;
-    background-color: #f4f4f9;
 }
 
+.container {
+    max-width: 1200px;  /* ✅ 기존 900px → 1200px로 확장 */
+    margin: 0 auto;
+}
+
+.nav-tabs .nav-link {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.tab-content {
+    padding: 20px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* ✅ 제목 중앙 정렬 */
 h1 {
     text-align: center;
+    font-size: 24px;
+    margin-bottom: 20px;
 }
 
+/* ✅ 원형 차트 & 평가금액 그래프 크기 조정 */
 #pie-chart, #profit-chart {
     margin: 20px auto;
-    width: 80%;
-    height: 400px;
+    width: 90%;
+    height: 450px;  /* ✅ 기존 400px → 450px로 확대 */
 }
 
+/* ✅ Treemap 컨테이너 (S&P 500 vs 내 포트폴리오) */
+.treemap-container {
+    display: flex;
+    justify-content: space-between;  /* ✅ Treemap을 좌우로 정렬 */
+    align-items: center;
+    margin-top: 20px;
+    gap: 30px;  /* ✅ Treemap 간 간격 추가 */
+}
+
+/* ✅ Treemap 크기 조정 */
+#sp500-treemap, #portfolio-treemap {
+    width: 48%;  /* ✅ 48%로 균등 배치 */
+    height: 500px;  /* ✅ 기존보다 크기 확대 */
+}
+
+/* ✅ 환율 차트 크기 조정 */
+#exchange-rate-chart {
+    margin: 30px auto;
+    width: 90%;
+    height: 450px;
+}
+
+/* ✅ 관심 목록 폼 스타일 */
 form {
     margin: 20px auto;
     width: 80%;
