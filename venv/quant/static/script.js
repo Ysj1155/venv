@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     window.showTab = showTab; // 글로벌 함수 등록
-    });
+
     // ✅ 원형 다이어그램 데이터 로드
     fetch("/get_pie_chart_data")
         .then(response => response.json())
@@ -39,7 +39,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 type: "scatter",
                 mode: "lines+markers",
                 name: "Total Account Value",
-                yaxis: "y1"  // ✅ 1차 Y축
+                yaxis: "y1"
             };
 
             let profitTrace = {
@@ -48,8 +48,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 type: "scatter",
                 mode: "lines",
                 name: "Account Profit (%)",
-                yaxis: "y2",  // ✅ 2차 Y축 (수익률)
-                line: { color: "red", dash: "dot" }  // ✅ 스타일 적용 (점선)
+                yaxis: "y2",
+                line: { color: "red", dash: "dot" }
             };
 
             let layout = {
@@ -70,27 +70,26 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // ✅ 환율 추세 데이터 로드
     fetch("/get_exchange_rate_data")
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            console.error("Exchange rate data error:", data.error);
-            return;
-        }
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error("Exchange rate data error:", data.error);
+                return;
+            }
 
-        Plotly.newPlot("exchange-rate-chart", [{
-            x: data.dates,
-            y: data.rates,
-            type: "scatter",
-            mode: "lines",
-            name: "USD/KRW Exchange Rate",
-            connectgaps: false
-        }]);
-    })
-    .catch(error => console.error("Error fetching exchange rate data:", error));
+            Plotly.newPlot("exchange-rate-chart", [{
+                x: data.dates,
+                y: data.rates,
+                type: "scatter",
+                mode: "lines",
+                name: "USD/KRW Exchange Rate",
+                connectgaps: false
+            }]);
+        })
+        .catch(error => console.error("Error fetching exchange rate data:", error));
 
     // ✅ Treemap 데이터 로드
-function loadTreemapData() {
-        // ✅ S&P 500 섹터 Treemap
+    function loadTreemapData() {
         fetch("/get_treemap_data")
             .then(response => response.json())
             .then(data => {
@@ -114,40 +113,37 @@ function loadTreemapData() {
 
                 Plotly.newPlot("sp500-treemap", [fig_sp500], {
                     title: "S&P 500 섹터별 변동률",
-                    height: 600, width: 600  // ✅ 크기 조정
+                    height: 600, width: 600
                 });
             })
             .catch(error => console.error("Error fetching Treemap data:", error));
 
-        // ✅ 내 포트폴리오 섹터 Treemap
         fetch("/get_portfolio_sector_data")
             .then(response => response.json())
             .then(data => {
-                if (data.error) {
-                    console.error("Error fetching Portfolio Treemap data:", data.error);
-                    return;
-                }
+                let sectors = Object.keys(data);
+                let values = sectors.map(sector => data[sector].total_value);
+                let hover_texts = sectors.map(sector => {
+                    let stocks = data[sector].stocks.map(s => `${s.ticker}: $${s.price.toLocaleString()}`).join("<br>");
+                    return `${sector}<br>${stocks}`;
+                });
 
-                let fig_portfolio = {
+                let treemapData = [{
                     type: "treemap",
-                    labels: data.sectors,
-                    parents: Array(data.sectors.length).fill(""),
-                    values: data.values,
-                    textinfo: "label+value",
-                    marker: {
-                        colorscale: "Blues"
-                    }
-                };
+                    labels: sectors,
+                    parents: Array(sectors.length).fill(""),
+                    values: values,
+                    text: hover_texts,
+                    hoverinfo: "text"
+                }];
 
-                Plotly.newPlot("portfolio-treemap", [fig_portfolio], {
-                    title: "내 포트폴리오 섹터 분포",
-                    height: 600, width: 600  // ✅ 크기 조정
+                Plotly.newPlot("portfolio-sector-chart", treemapData, {
+                    title: "내 포트폴리오 섹터 분포"
                 });
             })
-            .catch(error => console.error("Error fetching Portfolio Treemap data:", error));
+            .catch(error => console.error("Error fetching portfolio sector data:", error));
     }
 
-    // ✅ Treemap 데이터 로드
     loadTreemapData();
 
     // ✅ 관심 종목 추가 기능
@@ -174,3 +170,4 @@ function loadTreemapData() {
             });
         }
     });
+});

@@ -1,4 +1,5 @@
 from flask import Flask, render_template, jsonify
+from yahooquery import Ticker
 import FinanceDataReader as fdr
 import pandas as pd
 import requests
@@ -14,13 +15,6 @@ csv_manager.process_portfolio_data()
 def index():
     return render_template("index.html")
     """ 메인 페이지 렌더링 """
-    try:
-        portfolio_data = pd.read_csv(csv_manager.PORTFOLIO_FILE, encoding="utf-8-sig")
-    except Exception as e:
-        print(f"❌ Error loading portfolio data: {e}")
-        portfolio_data = pd.DataFrame()  # 빈 DataFrame 반환
-
-    return render_template("index.html", stocks=portfolio_data.to_dict(orient="records"))
 
 
 @app.route("/get_pie_chart_data", methods=["GET"])
@@ -94,16 +88,13 @@ def get_treemap_data():
             "Industrials": "XLI", "Real Estate": "XLRE", "Energy": "XLE",
             "Utilities": "XLU", "Materials": "XLB"
         }
-
         sector_data = []
         for sector, ticker in sectors.items():
             df = fdr.DataReader(ticker, "2023")
             df["Change"] = ((df["Close"] - df["Close"].shift(1)) / df["Close"].shift(1)) * 100
             latest_change = df["Change"].iloc[-1]  # 최신 변화율
             sector_data.append({"Sector": sector, "Change": latest_change})
-
         df_sectors = pd.DataFrame(sector_data)
-
         return jsonify({
             "sectors": df_sectors["Sector"].tolist(),
             "changes": df_sectors["Change"].tolist()
@@ -114,33 +105,37 @@ def get_treemap_data():
 
 @app.route("/get_portfolio_sector_data", methods=["GET"])
 def get_portfolio_sector_data():
-    """ 내 포트폴리오의 섹터별 평가금액 비율을 반환하는 엔드포인트 """
+    """ 내 포트폴리오의 섹터별 평가금액 비율 및 각 섹터별 포함 종목 정보를 반환하는 엔드포인트 """
     try:
+        # ✅ S&P 500 데이터 가져오기
         df_sp500 = fdr.StockListing("S&P500")[["Symbol", "Name", "Sector"]]
-        df_sp500.rename(columns={"Name": "ticker"}, inplace=True)  # ✅ 포트폴리오 데이터와 컬럼명 일치
-        print(df_sp500.head())
+        df_sp500.rename(columns={"Symbol": "converted_ticker"}, inplace=True)
 
+        # ✅ 한글 종목명을 영어 Symbol로 매핑
+        ticker_mapping = {
+            "애플": "AAPL", "엔비디아": "NVDA", "테슬라": "TSLA",
+            "알파벳 A": "GOOGL", "아마존닷컴": "AMZN",
+            "카디널 헬스": "CAH", "TSMC(ADR)": "TSM",
+            "PROETF ULTRAPRO QQQ": "TQQQ", "INVESCO QQQ TRUST UNIT SER 1": "QQQ"
+        }
         # ✅ 내 포트폴리오 데이터 가져오기
         df_portfolio = pd.read_csv(csv_manager.PORTFOLIO_FILE, encoding="utf-8-sig")
-
-        # ✅ S&P 500 데이터와 매칭 (ticker 기준)
-        df_merged = df_portfolio.merge(df_sp500, on="ticker", how="left")
-        print(df_merged)
-
-        # ✅ S&P 500에 없는 주식은 "Non-S&P 500"으로 표시
+        df_portfolio["converted_ticker"] = df_portfolio["ticker"].map(ticker_mapping)
+        # ✅ 변환된 Symbol을 사용하여 S&P 500 데이터와 매칭
+        df_merged = df_portfolio.merge(df_sp500, on="converted_ticker", how="left")
         df_merged.loc[:, "Sector"] = df_merged["Sector"].fillna("Non-S&P 500")
-
-        # ✅ 섹터별 평가금액 합산
-        sector_distribution = df_merged.groupby("Sector")["evaluation_amount"].sum().reset_index()
-        sector_distribution.sort_values("evaluation_amount", ascending=False, inplace=True)
-
-        return jsonify({
-            "sectors": sector_distribution["Sector"].tolist(),
-            "values": sector_distribution["evaluation_amount"].tolist()
-        })
-
+        # ✅ 섹터별 평가금액 및 종목별 정보 수집
+        sector_info = {}
+        for sector, group in df_merged.groupby("Sector"):
+            stocks = [{"ticker": row["converted_ticker"], "price": row["evaluation_amount"]} for _, row in group.iterrows()]
+            sector_info[sector] = {
+                "total_value": group["evaluation_amount"].sum(),
+                "stocks": stocks
+            }
+        return jsonify(sector_info)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/get_exchange_rate_data", methods=["GET"])
 def get_exchange_rate_data():
