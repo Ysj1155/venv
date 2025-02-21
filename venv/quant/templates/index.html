@@ -28,16 +28,39 @@
         <!-- ✅ 개인 계좌 (Main Dashboard) -->
         <div id="dashboard" class="tab-content mt-3">
             <h3>📊 개인 계좌 개요</h3>
+            <p id="total-value"></p>
+            <!-- ✅ 포트폴리오 데이터 테이블 -->
+            <div class="mt-4">
+                <h3>📋 포트폴리오 내역</h3>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>계좌번호</th>
+                            <th>종목</th>
+                            <th>수량</th>
+                            <th>매입금액</th>
+                            <th>평가금액</th>
+                            <th>평가손익</th>
+                            <th>손익률</th>
+                        </tr>
+                    </thead>
+                    <tbody id="portfolio-table-body">
+                        <!-- 데이터가 동적으로 추가될 부분 -->
+                    </tbody>
+                </table>
+            </div>
             <div id="profit-chart"></div>
             <div id="pie-chart"></div>
         </div>
+
+
         <!-- ✅ 보조 자료 (Supplementary Data) -->
         <div id="data" class="tab-content mt-3" style="display: none;">
             <h3>📈 보조 자료</h3>
             <div class="treemap-container">
-            <div id="sp500-treemap"></div>
-            <div id="portfolio-treemap"></div>
-        </div>
+                <div id="sp500-treemap"></div>
+                <div id="portfolio-treemap"></div>
+            </div>
             <div id="exchange-rate-chart"></div>
         </div>
 

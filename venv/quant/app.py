@@ -16,6 +16,32 @@ def index():
     return render_template("index.html")
     """ 메인 페이지 렌더링 """
 
+@app.route("/get_reference_portfolio_data", methods=["GET"])
+def get_reference_portfolio_data():
+    """ 기준이 되는 특정 날짜의 portfolio_data.csv 데이터를 반환하는 엔드포인트 """
+    try:
+        reference_csv = os.path.join(csv_manager.DATA_DIR, "2025-01-30.csv")  # 기준 파일 지정
+        if not os.path.exists(reference_csv):
+            return jsonify({"error": "Reference CSV file not found"}), 404
+
+        df = pd.read_csv(reference_csv, encoding="utf-8-sig")
+
+        # ✅ 필요한 컬럼만 선택
+        df = df[["ticker", "profit_loss", "profit_rate"]]
+        return jsonify(df.to_dict(orient="records"))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/get_portfolio_data", methods=["GET"])
+def get_portfolio_data():
+    """ 포트폴리오 데이터를 JSON 형식으로 반환하는 엔드포인트 """
+    try:
+        df = pd.read_csv(csv_manager.PORTFOLIO_FILE, encoding="utf-8-sig")
+        columns = ["type", "account_number", "ticker", "profit_loss", "profit_rate", "quantity", "purchase_amount", "evaluation_amount", "evaluation_ratio"]
+        df = df[columns]
+        return jsonify(df.to_dict(orient="records"))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/get_pie_chart_data", methods=["GET"])
 def get_pie_chart_data():
@@ -110,7 +136,6 @@ def get_portfolio_sector_data():
         # ✅ S&P 500 데이터 가져오기
         df_sp500 = fdr.StockListing("S&P500")[["Symbol", "Name", "Sector"]]
         df_sp500.rename(columns={"Symbol": "converted_ticker"}, inplace=True)
-
         # ✅ 한글 종목명을 영어 Symbol로 매핑
         ticker_mapping = {
             "애플": "AAPL", "엔비디아": "NVDA", "테슬라": "TSLA",
@@ -120,14 +145,17 @@ def get_portfolio_sector_data():
         }
         # ✅ 내 포트폴리오 데이터 가져오기
         df_portfolio = pd.read_csv(csv_manager.PORTFOLIO_FILE, encoding="utf-8-sig")
-        df_portfolio["converted_ticker"] = df_portfolio["ticker"].map(ticker_mapping)
+        # ✅ NaN 방지 (NaN -> "Unknown")
+        df_portfolio["converted_ticker"] = df_portfolio["ticker"].map(ticker_mapping).fillna("Unknown")
+        df_portfolio["evaluation_amount"] = df_portfolio["evaluation_amount"].fillna(0)
         # ✅ 변환된 Symbol을 사용하여 S&P 500 데이터와 매칭
         df_merged = df_portfolio.merge(df_sp500, on="converted_ticker", how="left")
         df_merged.loc[:, "Sector"] = df_merged["Sector"].fillna("Non-S&P 500")
         # ✅ 섹터별 평가금액 및 종목별 정보 수집
         sector_info = {}
         for sector, group in df_merged.groupby("Sector"):
-            stocks = [{"ticker": row["converted_ticker"], "price": row["evaluation_amount"]} for _, row in group.iterrows()]
+            stocks = [{"ticker": row["converted_ticker"] if pd.notna(row["converted_ticker"]) else "Unknown",
+                       "price": row["evaluation_amount"]} for _, row in group.iterrows()]
             sector_info[sector] = {
                 "total_value": group["evaluation_amount"].sum(),
                 "stocks": stocks
@@ -136,7 +164,6 @@ def get_portfolio_sector_data():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @app.route("/get_exchange_rate_data", methods=["GET"])
 def get_exchange_rate_data():
     """ USD/KRW 환율 데이터를 JSON 형식으로 반환하는 엔드포인트 """
@@ -144,6 +171,8 @@ def get_exchange_rate_data():
         df = fdr.DataReader('USD/KRW', '2023')  # 최근 데이터 가져오기
         df = df[['Close']].reset_index()  # 날짜를 인덱스에서 컬럼으로 변환
         df.rename(columns={'Close': 'exchange_rate', 'index': 'date'}, inplace=True)
+        # ✅ NaN 값 제거
+        df = df.dropna(subset=['exchange_rate'])
         # ✅ 1월 1일 데이터 필터링하여 제거
         df = df[~df["date"].dt.strftime('%m-%d').eq("01-01")]
         return jsonify({

@@ -6,8 +6,58 @@ document.addEventListener("DOMContentLoaded", function () {
         document.querySelectorAll(".nav-link").forEach(link => link.classList.remove("active"));
         document.getElementById(`tab-${tabId}`).classList.add("active");
     }
-
     window.showTab = showTab; // 글로벌 함수 등록
+    // portfolio_data.csv 테이블
+    fetch("/get_portfolio_data")
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error("Error fetching portfolio data:", data.error);
+                return;
+            }
+
+            const tableBody = document.getElementById("portfolio-table-body");
+            if (!tableBody) {
+                console.error("Error: 'portfolio-table-body' element is missing!");
+                return;
+            }
+            tableBody.innerHTML = ""; // 기존 데이터 초기화
+            data.forEach(row => {
+                    let tr = document.createElement("tr");
+
+                    let profitLossColor = "black";  // 기본 색상
+                    let profitRateColor = "black";
+
+                    // ✅ 기준 데이터와 비교하여 색상 변경
+                    if (referenceDataMap[row.ticker]) {
+                        let refProfitLoss = referenceDataMap[row.ticker].profit_loss;
+                        let refProfitRate = referenceDataMap[row.ticker].profit_rate;
+
+                        if (row.profit_loss > refProfitLoss) {
+                            profitLossColor = "red";  // 이득 증가
+                        } else if (row.profit_loss < refProfitLoss) {
+                            profitLossColor = "blue"; // 손해 증가
+                        }
+
+                        if (row.profit_rate > refProfitRate) {
+                            profitRateColor = "red";  // 손익률 증가
+                        } else if (row.profit_rate < refProfitRate) {
+                            profitRateColor = "blue"; // 손익률 감소
+                        }
+                    }
+                tr.innerHTML = `
+                    <td>${row.account_number}</td>
+                    <td>${row.ticker}</td>
+                    <td>${row.quantity}</td>
+                    <td>${row.purchase_amount.toLocaleString()} KRW</td>
+                    <td>${row.evaluation_amount.toLocaleString()} KRW</td>
+                    <td>${row.profit_loss.toLocaleString()} KRW</td>
+                    <td>${row.profit_rate.toFixed(2)}%</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        })
+        .catch(error => console.error("Error fetching portfolio data:", error));
 
     // ✅ 원형 다이어그램 데이터 로드
     fetch("/get_pie_chart_data")
@@ -19,8 +69,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 type: "pie"
             }]);
 
-            // 총액 표시
-            document.getElementById("total-value").innerText = `Total Value: ${data.total_value}`;
+            let totalValueElement = document.getElementById("total-value");
+            if (totalValueElement) {
+                totalValueElement.innerText = `Total Value: ${data.total_value}`;
+            }
         })
         .catch(error => console.error("Error fetching pie chart data:", error));
 
@@ -88,13 +140,19 @@ document.addEventListener("DOMContentLoaded", function () {
         })
         .catch(error => console.error("Error fetching exchange rate data:", error));
 
-    // ✅ Treemap 데이터 로드
+    // ✅ Treemap 데이터 로드 함수
     function loadTreemapData() {
         fetch("/get_treemap_data")
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
                     console.error("Error fetching Treemap data:", data.error);
+                    return;
+                }
+
+                let sp500Element = document.getElementById("sp500-treemap");
+                if (!sp500Element) {
+                    console.error("Error: 'sp500-treemap' element is missing!");
                     return;
                 }
 
@@ -121,11 +179,20 @@ document.addEventListener("DOMContentLoaded", function () {
         fetch("/get_portfolio_sector_data")
             .then(response => response.json())
             .then(data => {
+                let portfolioElement = document.getElementById("portfolio-treemap");
+                if (!portfolioElement) {
+                    console.error("Error: 'portfolio-treemap' element is missing!");
+                    return;
+                }
+
                 let sectors = Object.keys(data);
                 let values = sectors.map(sector => data[sector].total_value);
                 let hover_texts = sectors.map(sector => {
-                    let stocks = data[sector].stocks.map(s => `${s.ticker}: $${s.price.toLocaleString()}`).join("<br>");
-                    return `${sector}<br>${stocks}`;
+                    let stocks = data[sector].stocks.map(s => {
+                        let ticker = s.ticker ? s.ticker : "Unknown";  // ✅ NaN 방지
+                        return `${ticker}: $${s.price.toLocaleString()}`;
+                    }).join("<br>");
+                    return `${stocks}`;
                 });
 
                 let treemapData = [{
@@ -137,13 +204,14 @@ document.addEventListener("DOMContentLoaded", function () {
                     hoverinfo: "text"
                 }];
 
-                Plotly.newPlot("portfolio-sector-chart", treemapData, {
+                Plotly.newPlot("portfolio-treemap", treemapData, {
                     title: "내 포트폴리오 섹터 분포"
                 });
             })
             .catch(error => console.error("Error fetching portfolio sector data:", error));
     }
 
+    // ✅ 페이지 로드 시 실행
     loadTreemapData();
 
     // ✅ 관심 종목 추가 기능
@@ -164,7 +232,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 } else {
                     const listItem = document.createElement("li");
                     listItem.textContent = ticker;
-                    document.getElementById("watchlist").appendChild(listItem);
+                    document.getElementById("watchlist-items").appendChild(listItem);
                     document.getElementById("ticker").value = "";
                 }
             });

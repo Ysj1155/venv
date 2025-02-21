@@ -1,0 +1,6 @@
+Flask
+pandas
+FinanceDataReader
+yahooquery
+requests
+plotly

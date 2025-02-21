@@ -63,7 +63,7 @@ def process_portfolio_data():
     # ✅ 컬럼 변환 및 필터링
     df.columns = df.columns.str.strip()
     df.rename(columns={k: v for k, v in COLUMN_MAP.items() if k in df.columns}, inplace=True)
-    portfolio_df = df[["type", "ticker", "evaluation_amount", "evaluation_ratio"]].copy()
+    portfolio_df = df[["type", "account_number","ticker", "profit_loss", "profit_rate", "quantity", "purchase_amount", "evaluation_amount", "evaluation_ratio"]].copy()
     # ✅ 데이터 변환 및 NaN 처리
     portfolio_df["evaluation_amount"] = portfolio_df["evaluation_amount"].astype(str).str.replace(",", "").astype(
         float).fillna(0)
