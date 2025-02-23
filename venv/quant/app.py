@@ -16,22 +16,6 @@ def index():
     return render_template("index.html")
     """ 메인 페이지 렌더링 """
 
-@app.route("/get_reference_portfolio_data", methods=["GET"])
-def get_reference_portfolio_data():
-    """ 기준이 되는 특정 날짜의 portfolio_data.csv 데이터를 반환하는 엔드포인트 """
-    try:
-        reference_csv = os.path.join(csv_manager.DATA_DIR, "2025-01-30.csv")  # 기준 파일 지정
-        if not os.path.exists(reference_csv):
-            return jsonify({"error": "Reference CSV file not found"}), 404
-
-        df = pd.read_csv(reference_csv, encoding="utf-8-sig")
-
-        # ✅ 필요한 컬럼만 선택
-        df = df[["ticker", "profit_loss", "profit_rate"]]
-        return jsonify(df.to_dict(orient="records"))
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 @app.route("/get_portfolio_data", methods=["GET"])
 def get_portfolio_data():
     """ 포트폴리오 데이터를 JSON 형식으로 반환하는 엔드포인트 """

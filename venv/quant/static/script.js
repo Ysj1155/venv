@@ -17,34 +17,9 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             const tableBody = document.getElementById("portfolio-table-body");
-            if (!tableBody) {
-                console.error("Error: 'portfolio-table-body' element is missing!");
-                return;
-            }
             tableBody.innerHTML = ""; // 기존 데이터 초기화
             data.forEach(row => {
                     let tr = document.createElement("tr");
-
-                    let profitLossColor = "black";  // 기본 색상
-                    let profitRateColor = "black";
-
-                    // ✅ 기준 데이터와 비교하여 색상 변경
-                    if (referenceDataMap[row.ticker]) {
-                        let refProfitLoss = referenceDataMap[row.ticker].profit_loss;
-                        let refProfitRate = referenceDataMap[row.ticker].profit_rate;
-
-                        if (row.profit_loss > refProfitLoss) {
-                            profitLossColor = "red";  // 이득 증가
-                        } else if (row.profit_loss < refProfitLoss) {
-                            profitLossColor = "blue"; // 손해 증가
-                        }
-
-                        if (row.profit_rate > refProfitRate) {
-                            profitRateColor = "red";  // 손익률 증가
-                        } else if (row.profit_rate < refProfitRate) {
-                            profitRateColor = "blue"; // 손익률 감소
-                        }
-                    }
                 tr.innerHTML = `
                     <td>${row.account_number}</td>
                     <td>${row.ticker}</td>
