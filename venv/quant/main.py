@@ -29,9 +29,7 @@ def save_watchlist(watchlist):
 
 if __name__ == "__main__":
     watchlist = load_watchlist()
-    print("=== 관심 종목 (웹에서 설정된 종목) ===")
     for stock in watchlist:
-        print(stock)
 
     # ✅ 시장 데이터 로드 (웹 기반 관심 목록 반영)
     GLOBAL_TICKERS = ['AAPL', '^GSPC', 'MSFT'] + watchlist

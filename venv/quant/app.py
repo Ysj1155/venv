@@ -32,20 +32,16 @@ def get_pie_chart_data():
     """ 최신 날짜 기준으로 원형 차트 데이터를 반환하는 엔드포인트 """
     try:
         df = pd.read_csv(csv_manager.PORTFOLIO_FILE, encoding="utf-8-sig")
-
         if df.empty or "evaluation_amount" not in df.columns or "ticker" not in df.columns:
             return jsonify({"labels": [], "values": [], "total_value": "0 KRW"})
-
         total_value = df["evaluation_amount"].sum()
         if total_value <= 0:
             return jsonify({"labels": [], "values": [], "total_value": "0 KRW"})
-
         return jsonify({
             "labels": df["ticker"].tolist(),
             "values": (df["evaluation_amount"] / total_value * 100).tolist(),
             "total_value": f"{int(total_value):,} KRW"
         })
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -55,7 +51,6 @@ def add_watchlist():
     """관심 종목 리스트에 종목 추가"""
     data = request.get_json()
     ticker = data.get("ticker")
-
     if ticker and ticker not in watchlist:
         watchlist.append(ticker)
         return jsonify({"message": "Ticker added", "watchlist": watchlist})

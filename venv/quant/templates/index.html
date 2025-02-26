@@ -10,7 +10,6 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-
     <div class="container mt-4">
         <h2 class="text-center">📊 투자 대시보드</h2>
         <ul class="nav nav-tabs" id="dashboard-tabs">
@@ -24,7 +23,6 @@
                 <a class="nav-link" id="tab-watchlist" href="#" onclick="showTab('watchlist')">⭐ 관심 목록</a>
             </li>
         </ul>
-
         <!-- ✅ 개인 계좌 (Main Dashboard) -->
         <div id="dashboard" class="tab-content mt-3">
             <h3>📊 개인 계좌 개요</h3>
@@ -52,8 +50,6 @@
             <div id="profit-chart"></div>
             <div id="pie-chart"></div>
         </div>
-
-
         <!-- ✅ 보조 자료 (Supplementary Data) -->
         <div id="data" class="tab-content mt-3" style="display: none;">
             <h3>📈 보조 자료</h3>
@@ -73,9 +69,7 @@
             </form>
             <ul id="watchlist-items"></ul>
         </div>
-
     </div>
-
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
