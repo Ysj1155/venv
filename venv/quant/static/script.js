@@ -27,7 +27,9 @@ document.addEventListener("DOMContentLoaded", function () {
                     <td>${row.purchase_amount.toLocaleString()} KRW</td>
                     <td>${row.evaluation_amount.toLocaleString()} KRW</td>
                     <td>${row.profit_loss.toLocaleString()} KRW</td>
-                    <td>${row.profit_rate.toFixed(2)}%</td>
+                    <td style="color: ${row.profit_rate >= 0 ? 'red' : 'blue'}; font-weight: bold;">
+                    ${row.profit_rate.toFixed(2)}%
+                    </td>
                 `;
                 tableBody.appendChild(tr);
             });
@@ -59,7 +61,18 @@ document.addEventListener("DOMContentLoaded", function () {
                 console.error("Error fetching account value data:", data.error);
                 return;
             }
-
+            let totalValueElement = document.getElementById("total-value");
+            let latestValue = data.latest_value.toLocaleString();
+            let latestProfit = data.latest_profit.toFixed(2);
+            let profitColor = latestProfit >= 0 ? "red" : "blue";
+            if (totalValueElement) {
+                totalValueElement.innerHTML = `
+                    Total Value: ${latestValue} KRW
+                    <span style="color: ${profitColor}; font-weight: bold;">
+                        (${latestProfit}%)
+                    </span>
+                `;
+            }
             let totalValueTrace = {
                 x: data.dates,
                 y: data.total_values,

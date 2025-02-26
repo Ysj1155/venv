@@ -79,10 +79,14 @@ def get_account_value_data():
         initial_value = 23529530  # 사용자가 지정한 기준 금액
         # ✅ 지정된 금액 대비 수익률(%) 계산
         df["profit"] = ((df["total_value"] - initial_value) / initial_value) * 100
+        latest_value = df.iloc[-1]["total_value"]
+        latest_profit = df.iloc[-1]["profit"]
         return jsonify({
             "dates": df["date"].astype(str).tolist(),
             "total_values": df["total_value"].tolist(),  # 총 평가금액
-            "profits": df["profit"].tolist()  # 기준 금액(23,529,530) 대비 수익률 (%)
+            "profits": df["profit"].tolist(),  # 기준 금액(23,529,530) 대비 수익률 (%)
+            "latest_value": latest_value,
+            "latest_profit": latest_profit
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
