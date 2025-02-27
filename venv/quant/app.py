@@ -1,5 +1,6 @@
 from flask import Flask, render_template, jsonify
 from yahooquery import Ticker
+from pykis import KisAuth, KisQuote
 import FinanceDataReader as fdr
 import pandas as pd
 import requests
@@ -10,6 +11,8 @@ app = Flask(__name__)
 # ✅ 서버 시작 시 CSV 데이터 최신화
 csv_manager.process_account_value()
 csv_manager.process_portfolio_data()
+kis = PyKis("secret.json", "virtual_secret.json", keep_token=True)
+kis = PyKis(KisAuth.load("secret.json"), KisAuth.load("virtual_secret.json"), keep_token=True)
 
 @app.route("/")
 def index():
