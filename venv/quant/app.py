@@ -1,18 +1,24 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request  # Flask 기본 기능
+from markupsafe import Markup                      # Markdown HTML 안전 처리
 from yahooquery import Ticker
-from pykis import KisAuth, KisQuote
 import FinanceDataReader as fdr
 import pandas as pd
-import requests
-import csv_manager  # ✅ CSV 데이터 처리를 `csv_manager.py`에서 가져옴
+import requests, markdown                          # API 요청 + Markdown to HTML
+import csv_manager                                  # CSV 데이터 처리 모듈
+import json
 
 app = Flask(__name__)
 
 # ✅ 서버 시작 시 CSV 데이터 최신화
 csv_manager.process_account_value()
 csv_manager.process_portfolio_data()
-kis = PyKis("secret.json", "virtual_secret.json", keep_token=True)
-kis = PyKis(KisAuth.load("secret.json"), KisAuth.load("virtual_secret.json"), keep_token=True)
+
+@app.route("/readme")
+def show_readme():
+    with open("readme.md", "r", encoding="utf-8") as f:
+        content = f.read()
+        html = markdown.markdown(content)  # Markdown → HTML 변환
+        return f"<div style='padding:40px;'>{Markup(html)}</div>"
 
 @app.route("/")
 def index():
@@ -51,11 +57,11 @@ def get_pie_chart_data():
 watchlist = []  # 관심 종목 리스트
 @app.route("/add_watchlist", methods=["POST"])
 def add_watchlist():
-    """관심 종목 리스트에 종목 추가"""
     data = request.get_json()
-    ticker = data.get("ticker")
-    if ticker and ticker not in watchlist:
+    ticker = data.get("ticker").upper()
+    if ticker and ticker not in [t.upper() for t in watchlist]:
         watchlist.append(ticker)
+        save_watchlist_file(watchlist)  # ← 저장!
         return jsonify({"message": "Ticker added", "watchlist": watchlist})
     else:
         return jsonify({"error": "Invalid ticker or already exists"}), 400
@@ -64,6 +70,34 @@ def add_watchlist():
 def get_watchlist():
     """현재 저장된 관심 종목 리스트 반환"""
     return jsonify({"watchlist": watchlist})
+
+WATCHLIST_PATH = "watchlist.json"
+
+def load_watchlist_file():
+    try:
+        with open(WATCHLIST_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return []
+
+def save_watchlist_file(watchlist):
+    with open(WATCHLIST_PATH, "w", encoding="utf-8") as f:
+        json.dump(watchlist, f, ensure_ascii=False, indent=2)
+
+@app.route("/remove_watchlist", methods=["DELETE"])
+def remove_watchlist():
+    data = request.get_json()
+    ticker = data.get("ticker", "").upper()
+    if ticker in [t.upper() for t in watchlist]:
+        # 대소문자 일치 항목 삭제
+        watchlist[:] = [t for t in watchlist if t.upper() != ticker]
+        save_watchlist_file(watchlist)
+        return jsonify({"message": f"{ticker} removed", "watchlist": watchlist})
+    else:
+        return jsonify({"error": "Ticker not found"}), 400
+
+# 서버 시작 시 로드
+watchlist = load_watchlist_file()
 
 @app.route("/get_account_value_data", methods=["GET"])
 def get_account_value_data():

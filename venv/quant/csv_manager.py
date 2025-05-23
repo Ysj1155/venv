@@ -44,7 +44,8 @@ def process_account_value():
     account_values = []
     for csv_file in csv_files:
         file_date = extract_date_from_filename(csv_file)
-        df = pd.read_csv(os.path.join(DATA_DIR, csv_file), encoding="utf-8-sig", usecols=["평가금액"])
+        file_path = os.path.join(DATA_DIR, csv_file)
+        df = pd.read_csv(file_path, encoding="utf-8-sig", usecols=["평가금액"])
         total_value = df["평가금액"].astype(str).str.replace(",", "").astype(float).sum()
         account_values.append({"date": file_date, "total_value": total_value})
 

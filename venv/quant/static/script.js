@@ -5,6 +5,45 @@ document.addEventListener("DOMContentLoaded", function () {
         document.querySelectorAll(".nav-link").forEach(link => link.classList.remove("active"));
         document.getElementById(`tab-${tabId}`).classList.add("active");
     }
+function createWatchlistItem(ticker) {
+    const li = document.createElement("li");
+    li.style.display = "flex";
+    li.style.justifyContent = "space-between";
+    li.style.alignItems = "center";
+    li.style.padding = "4px 8px";
+    // 티커 텍스트
+    const span = document.createElement("span");
+    span.textContent = ticker;
+    // ❌ 삭제 버튼
+    const deleteBtn = document.createElement("button");
+    deleteBtn.textContent = "❌";
+    deleteBtn.style.border = "none";
+    deleteBtn.style.background = "none";
+    deleteBtn.style.cursor = "pointer";
+    deleteBtn.style.color = "red";
+    deleteBtn.title = "관심 목록에서 제거";
+
+    deleteBtn.addEventListener("click", () => {
+        if (confirm(`${ticker} 티커를 관심 목록에서 삭제할까요?`)) {
+            fetch("/remove_watchlist", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ticker: ticker })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    li.remove();
+                }
+            });
+        }
+    });
+    li.appendChild(span);
+    li.appendChild(deleteBtn);
+    return li;
+}
     window.showTab = showTab; // 글로벌 함수 등록
     // portfolio_data.csv 테이블
     fetch("/get_portfolio_data")
@@ -200,11 +239,23 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // ✅ 페이지 로드 시 실행
     loadTreemapData();
+    // ✅ 페이지 처음 로드 시 기존 관심 종목 불러오기
+    fetch("/get_watchlist")
+        .then(response => response.json())
+        .then(data => {
+            const watchlistItems = document.getElementById("watchlist-items");
+            watchlistItems.innerHTML = "";
+            data.watchlist.forEach(ticker => {
+                const li = createWatchlistItem(ticker);
+                watchlistItems.appendChild(li);
+            });
+        })
+        .catch(error => console.error("Error loading watchlist:", error));
 
     // ✅ 관심 종목 추가 기능
     document.getElementById("watchlist-form").addEventListener("submit", function(event) {
         event.preventDefault();
-        const ticker = document.getElementById("ticker").value.trim();
+        const ticker = document.getElementById("ticker").value.trim().toUpperCase();
 
         if (ticker) {
             fetch("/add_watchlist", {
@@ -217,8 +268,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (data.error) {
                     alert(data.error);
                 } else {
-                    const listItem = document.createElement("li");
-                    listItem.textContent = ticker;
+                    const listItem = createWatchlistItem(ticker);
                     document.getElementById("watchlist-items").appendChild(listItem);
                     document.getElementById("ticker").value = "";
                 }
