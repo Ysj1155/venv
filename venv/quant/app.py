@@ -203,6 +203,67 @@ def get_exchange_rate_data():
         print("\n❌ ERROR in get_exchange_rate_data:", str(e))  # 오류 메시지 출력
         return jsonify({"error": str(e)}), 500
 
+@app.route("/get_stock_detail")
+def get_stock_detail():
+    from yahooquery import Ticker
+    ticker = request.args.get("ticker", "").upper()
+
+    try:
+        stock = Ticker(ticker)
+
+        # 가격 정보
+        price_info = stock.price.get(ticker)
+        if not price_info:
+            return jsonify({"error": f"{ticker}의 가격 정보를 가져올 수 없습니다."}), 400
+
+        # 요약 정보
+        summary = stock.summary_detail.get(ticker) or {}
+        history = stock.history(period="3mo")
+
+        if history is None or history.empty:
+            return jsonify({"error": f"{ticker}의 시세 데이터가 없습니다."}), 400
+
+        df = history[history.index.get_level_values(1) == ticker]
+        if df.empty:
+            return jsonify({"error": f"{ticker}의 주가 데이터가 비어 있습니다."}), 400
+
+        df["MA5"] = df["close"].rolling(5).mean()
+        df["MA20"] = df["close"].rolling(20).mean()
+        df["delta"] = df["close"].diff()
+        df["gain"] = df["delta"].apply(lambda x: x if x > 0 else 0)
+        df["loss"] = df["delta"].apply(lambda x: -x if x < 0 else 0)
+        avg_gain = df["gain"].rolling(14).mean()
+        avg_loss = df["loss"].rolling(14).mean()
+        rs = avg_gain / avg_loss
+        df["RSI"] = 100 - (100 / (1 + rs))
+
+        df = df.dropna()
+        if df.empty:
+            return jsonify({"error": f"{ticker}의 기술적 지표 계산에 실패했습니다."}), 400
+
+        latest = df.iloc[-1]
+
+        return jsonify({
+            "ticker": ticker,
+            "name": price_info.get("shortName", "Unknown"),
+            "price": price_info.get("regularMarketPrice"),
+            "marketCap": summary.get("marketCap", None),
+            "per": summary.get("trailingPE", None),
+            "dividendYield": summary.get("dividendYield", None),
+            "RSI": round(latest["RSI"], 1),
+            "golden_cross": latest["MA5"] > latest["MA20"],
+            "chart_data": {
+                "dates": df.index.get_level_values(0).strftime('%Y-%m-%d').tolist(),
+                "close": df["close"].tolist(),
+                "MA5": df["MA5"].round(2).tolist(),
+                "MA20": df["MA20"].round(2).tolist()
+            }
+        })
+
+    except Exception as e:
+        return jsonify({"error": f"서버 오류 발생: {str(e)}"}), 500
+
+
 
 @app.route('/favicon.ico')
 def favicon():

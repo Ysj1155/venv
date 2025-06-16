@@ -5,6 +5,21 @@ document.addEventListener("DOMContentLoaded", function () {
         document.querySelectorAll(".nav-link").forEach(link => link.classList.remove("active"));
         document.getElementById(`tab-${tabId}`).classList.add("active");
     }
+    function formatMarketCap(value) {
+    if (!value) return "N/A";
+    const billion = 1_000_000_000;
+    const million = 1_000_000;
+    if (value >= billion) return (value / billion).toFixed(1) + "B";
+    if (value >= million) return (value / million).toFixed(1) + "M";
+    return value.toLocaleString();
+}
+
+function interpretRSI(rsi) {
+    if (rsi > 70) return "과매수 📈";
+    if (rsi < 30) return "과매도 📉";
+    return "보통 ⚖️";
+}
+
 function createWatchlistItem(ticker) {
     const li = document.createElement("li");
     li.style.display = "flex";
@@ -14,6 +29,66 @@ function createWatchlistItem(ticker) {
     // 티커 텍스트
     const span = document.createElement("span");
     span.textContent = ticker;
+        span.style.cursor = "pointer";
+    span.title = "클릭하면 분석 정보를 확인합니다";
+
+    // ✅ 클릭 시 분석 정보 로드
+    span.addEventListener("click", () => {
+        fetch(`/get_stock_detail?ticker=${ticker}`)
+            .then(response => response.json())
+            .then(data => {
+                const panel = document.getElementById("stock-detail-panel");
+                const content = document.getElementById("detail-content");
+
+                if (data.error) {
+                    content.innerHTML = `<p style="color:red;">❌ ${data.error}</p>`;
+                } else {
+                    content.innerHTML = `
+                        <h5>${data.name} (${data.ticker})</h5>
+                        <p><strong>📈 현재가:</strong> $${data.price}</p>
+                        <p><strong>💰 시가총액:</strong> ${formatMarketCap(data.marketCap)}</p>
+                        <p><strong>📊 PER:</strong> ${data.per || 'N/A'}</p>
+                        <p><strong>📤 배당률:</strong> ${(data.dividendYield * 100 || 0).toFixed(2)}%</p>
+                        <p><strong>📍 RSI:</strong> ${data.RSI} → ${interpretRSI(data.RSI)}</p>
+                        <p><strong>📉 골든크로스:</strong> ${data.golden_cross ? "✅ 있음" : "❌ 없음"}</p>
+                    `;
+                    const chartDiv = document.createElement("div");
+                    chartDiv.id = "stock-price-chart";
+                    chartDiv.style.height = "400px";
+                    chartDiv.style.marginTop = "20px";
+                    content.appendChild(chartDiv);
+
+                    const traceClose = {
+                        x: data.chart_data.dates,
+                        y: data.chart_data.close,
+                        name: "종가",
+                        mode: "lines",
+                        line: { color: "black" }
+                    };
+                    const traceMA5 = {
+                        x: data.chart_data.dates,
+                        y: data.chart_data.MA5,
+                        name: "MA5",
+                        mode: "lines",
+                        line: { color: "blue", dash: "dot" }
+                    };
+                    const traceMA20 = {
+                        x: data.chart_data.dates,
+                        y: data.chart_data.MA20,
+                        name: "MA20",
+                        mode: "lines",
+                        line: { color: "red", dash: "dash" }
+                    };
+
+                    Plotly.newPlot("stock-price-chart", [traceClose, traceMA5, traceMA20], {
+                        title: `${data.ticker} 주가 차트 (최근 3개월)`,
+                        xaxis: { title: "날짜" },
+                        yaxis: { title: "가격 (USD)" }
+                    });
+                    panel.style.display = "block";
+                }
+            });
+    });
     // ❌ 삭제 버튼
     const deleteBtn = document.createElement("button");
     deleteBtn.textContent = "❌";

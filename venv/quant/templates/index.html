@@ -60,15 +60,28 @@
             <div id="exchange-rate-chart"></div>
         </div>
 
-        <!-- ✅ 관심 목록 (Watchlist) -->
-        <div id="watchlist" class="tab-content mt-3" style="display: none;">
-            <h3>⭐ 관심 목록</h3>
-            <form id="watchlist-form">
-                <input type="text" id="ticker" placeholder="티커 입력" required>
-                <button type="submit">추가</button>
-            </form>
-            <ul id="watchlist-items"></ul>
+    <!-- ✅ 관심 목록 (Watchlist) -->
+    <div id="watchlist" class="tab-content mt-3" style="display: none;">
+        <h3>⭐ 관심 목록</h3>
+        <form id="watchlist-form">
+            <input type="text" id="ticker" placeholder="티커 입력" required>
+            <button type="submit">추가</button>
+        </form>
+
+        <div style="display: flex; gap: 20px;">
+            <!-- 왼쪽: 관심 티커 리스트 -->
+            <ul id="watchlist-items" style="width: 200px; list-style-type: none; padding-left: 0;"></ul>
+
+            <!-- 오른쪽: 분석 정보 패널 -->
+            <div id="stock-detail-panel" style="display: none; flex: 1; border-left: 1px solid #ccc; padding-left: 20px;">
+                <h4 id="detail-title">📊 종목 분석</h4>
+                <div id="detail-content">
+                    티커를 선택하면 상세 정보가 여기에 표시됩니다.
+                </div>
+            </div>
         </div>
+    </div>
+
     </div>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
