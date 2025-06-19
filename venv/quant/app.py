@@ -1,7 +1,7 @@
 from flask import Flask, render_template, jsonify, request  # Flask 기본 기능
 from markupsafe import Markup                      # Markdown HTML 안전 처리
 from yahooquery import Ticker
-from finnhub_api import get_quote, get_candle_data, calculate_rsi
+from yfinance_api import get_stock_data, get_current_price
 import FinanceDataReader as fdr
 import pandas as pd
 import requests, markdown                          # API 요청 + Markdown to HTML
@@ -204,47 +204,42 @@ def get_exchange_rate_data():
         print("\n❌ ERROR in get_exchange_rate_data:", str(e))  # 오류 메시지 출력
         return jsonify({"error": str(e)}), 500
 
-@app.route("/get_stock_detail_finnhub")
-def get_stock_detail_finnhub():
-    import time
+@app.route("/get_stock_detail_yf")
+def get_stock_detail_yf():
     from datetime import datetime
 
     ticker = request.args.get("ticker", "").upper()
-    if not ticker:
-        return jsonify({"error": "ticker 파라미터가 없습니다."}), 400
+    print(f"🚀 [요청] ticker={ticker}")
 
     try:
-        quote = get_quote(ticker)
-        df = get_candle_data(ticker, days=90)
+        df = get_stock_data(ticker)
+        print("📊 [get_stock_data 결과]:", df.shape if df is not None else "None")
 
         if df is None or df.empty:
-            return jsonify({"error": f"{ticker}의 시세 데이터를 불러올 수 없습니다."}), 400
-
-        df = calculate_rsi(df)
-        df["MA5"] = df["close"].rolling(5).mean()
-        df["MA20"] = df["close"].rolling(20).mean()
-        df = df.dropna()
-
-        if df.empty:
-            return jsonify({"error": f"{ticker}의 차트 데이터가 부족합니다."}), 400
+            return jsonify({"error": f"{ticker}의 데이터를 가져올 수 없습니다."}), 400
 
         latest = df.iloc[-1]
+        print("✅ [최신 데이터]:", latest.to_dict())
+
+        price = get_current_price(ticker)
+        print("💰 [현재가]:", price)
+
         return jsonify({
             "ticker": ticker,
-            "price": quote["current"],
+            "price": price,
             "rsi": round(latest["RSI"], 2),
             "golden_cross": latest["MA5"] > latest["MA20"],
             "chart_data": {
-                "dates": df["date"].dt.strftime('%Y-%m-%d').tolist(),
-                "close": df["close"].tolist(),
+                "dates": df.index.strftime('%Y-%m-%d').tolist(),
+                "close": df["close"].round(2).tolist(),
                 "MA5": df["MA5"].round(2).tolist(),
                 "MA20": df["MA20"].round(2).tolist()
             }
         })
+
     except Exception as e:
-        return jsonify({"error": f"서버 오류 발생: {str(e)}"}), 500
-
-
+        print("❌ [서버 예외 발생]:", str(e))
+        return jsonify({"error": f"서버 오류: {str(e)}"}), 500
 
 @app.route('/favicon.ico')
 def favicon():

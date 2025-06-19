@@ -34,7 +34,7 @@ function createWatchlistItem(ticker) {
 
     // ✅ 클릭 시 분석 정보 로드
     span.addEventListener("click", () => {
-        fetch(`/get_stock_detail_finnhub?ticker=${ticker}`)
+        fetch(`/get_stock_detail_yf?ticker=${ticker}`)
             .then(response => response.json())
             .then(data => {
                 const panel = document.getElementById("stock-detail-panel");
