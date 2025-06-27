@@ -1,7 +1,10 @@
 from flask import Flask, render_template, jsonify, request  # Flask 기본 기능
 from markupsafe import Markup                      # Markdown HTML 안전 처리
 from yahooquery import Ticker
-from finnhub_api import get_quote, get_candle_data, calculate_indicators
+from finnhub_api import (
+    get_quote_raw, get_profile_raw, get_metrics_raw,
+    get_price_target_raw, get_company_news_raw, get_etf_holdings_raw
+)
 import FinanceDataReader as fdr
 import pandas as pd
 import requests, markdown                          # API 요청 + Markdown to HTML
@@ -206,35 +209,31 @@ def get_exchange_rate_data():
 
 @app.route("/get_stock_detail_finnhub")
 def get_stock_detail_finnhub():
-    from datetime import datetime
-
     ticker = request.args.get("ticker", "").upper()
-    print(f"🚀 요청 ticker={ticker}")
 
-    try:
-        price = get_quote(ticker)
-        df = get_candle_data(ticker)
-        if df is None or df.empty:
-            return jsonify({"error": f"{ticker}의 시세 데이터를 가져올 수 없습니다."}), 400
-        df = calculate_indicators(df)
-        if df.empty:
-            return jsonify({"error": f"{ticker}의 기술 지표를 계산할 수 없습니다."}), 400
-        latest = df.iloc[-1]
-        return jsonify({
-            "ticker": ticker,
-            "price": price,
-            "rsi": round(latest["RSI"], 2),
-            "golden_cross": latest["MA5"] > latest["MA20"],
-            "chart_data": {
-                "dates": df["date"].dt.strftime('%Y-%m-%d').tolist(),
-                "close": df["close"].round(2).tolist(),
-                "MA5": df["MA5"].round(2).tolist(),
-                "MA20": df["MA20"].round(2).tolist()
-            }
-        })
-    except Exception as e:
-        print("❌ 서버 오류:", e)
-        return jsonify({"error": f"서버 오류: {str(e)}"}), 500
+    # 필요한 함수 import
+    from finnhub_api import (
+        get_quote_raw, get_profile_raw, get_metrics_raw,
+        get_price_target_raw, get_company_news_raw
+    )
+
+    # 각 데이터 가져오기
+    price = get_quote_raw(ticker)
+    profile = get_profile_raw(ticker)
+    metrics = get_metrics_raw(ticker)
+    target = get_price_target_raw(ticker)
+    news = get_company_news_raw(ticker, "2024-06-01", "2024-06-27")
+
+    # JSON으로 묶어 반환
+    return jsonify({
+        "ticker": ticker,
+        "price": price,
+        "profile": profile,
+        "metrics": metrics,
+        "price_target": target,
+        "news": news
+    })
+
 
 @app.route('/favicon.ico')
 def favicon():

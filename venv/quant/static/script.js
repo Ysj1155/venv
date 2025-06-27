@@ -33,7 +33,7 @@ function createWatchlistItem(ticker) {
     span.title = "클릭하면 분석 정보를 확인합니다";
 
     // ✅ 클릭 시 분석 정보 로드
-    span.addEventListener("click", () => {
+        span.addEventListener("click", () => {
         fetch(`/get_stock_detail_finnhub?ticker=${ticker}`)
             .then(response => response.json())
             .then(data => {
@@ -43,52 +43,28 @@ function createWatchlistItem(ticker) {
                 if (data.error) {
                     content.innerHTML = `<p style="color:red;">❌ ${data.error}</p>`;
                 } else {
+                    const price = data.price?.c || 'N/A';
+                    const marketCap = data.profile?.marketCapitalization || 'N/A';
+                    const per = data.metrics?.metric?.peTTM || 'N/A';
+                    const dividendYield = data.metrics?.metric?.currentDividendYieldTTM || 0;
+
                     content.innerHTML = `
-                        <h5>${data.name} (${data.ticker})</h5>
-                        <p><strong>📈 현재가:</strong> $${data.price}</p>
-                        <p><strong>💰 시가총액:</strong> ${formatMarketCap(data.marketCap)}</p>
-                        <p><strong>📊 PER:</strong> ${data.per || 'N/A'}</p>
-                        <p><strong>📤 배당률:</strong> ${(data.dividendYield * 100 || 0).toFixed(2)}%</p>
-                        <p><strong>📍 RSI:</strong> ${data.RSI} → ${interpretRSI(data.RSI)}</p>
-                        <p><strong>📉 골든크로스:</strong> ${data.golden_cross ? "✅ 있음" : "❌ 없음"}</p>
+                        <h5>${data.profile?.name} (${ticker})</h5>
+                        <p><strong>📈 현재가:</strong> $${price}</p>
+                        <p><strong>💰 시가총액:</strong> ${formatMarketCap(marketCap)}</p>
+                        <p><strong>📊 PER:</strong> ${per}</p>
+                        <p><strong>📤 배당률:</strong> ${(dividendYield * 100).toFixed(2)}%</p>
+                        <p><strong>📍 RSI:</strong> 계산 필요</p>
+                        <p><strong>📉 골든크로스:</strong> 계산 필요</p>
                     `;
-                    const chartDiv = document.createElement("div");
-                    chartDiv.id = "stock-price-chart";
-                    chartDiv.style.height = "400px";
-                    chartDiv.style.marginTop = "20px";
-                    content.appendChild(chartDiv);
 
-                    const traceClose = {
-                        x: data.chart_data.dates,
-                        y: data.chart_data.close,
-                        name: "종가",
-                        mode: "lines",
-                        line: { color: "black" }
-                    };
-                    const traceMA5 = {
-                        x: data.chart_data.dates,
-                        y: data.chart_data.MA5,
-                        name: "MA5",
-                        mode: "lines",
-                        line: { color: "blue", dash: "dot" }
-                    };
-                    const traceMA20 = {
-                        x: data.chart_data.dates,
-                        y: data.chart_data.MA20,
-                        name: "MA20",
-                        mode: "lines",
-                        line: { color: "red", dash: "dash" }
-                    };
-
-                    Plotly.newPlot("stock-price-chart", [traceClose, traceMA5, traceMA20], {
-                        title: `${data.ticker} 주가 차트 (최근 3개월)`,
-                        xaxis: { title: "날짜" },
-                        yaxis: { title: "가격 (USD)" }
-                    });
                     panel.style.display = "block";
                 }
-            });
+            })
+            .catch(error => console.error("❌ fetch error:", error));
     });
+
+
     // ❌ 삭제 버튼
     const deleteBtn = document.createElement("button");
     deleteBtn.textContent = "❌";
