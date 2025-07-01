@@ -16,6 +16,7 @@ def load_watchlist():
     except requests.exceptions.RequestException:
         pass  # 서버 연결 실패 시 로컬 JSON 파일 사용
 
+    # 로컬 파일 로드
     try:
         with open(WATCHLIST_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -29,7 +30,6 @@ def save_watchlist(watchlist):
 
 if __name__ == "__main__":
     watchlist = load_watchlist()
-    for stock in watchlist:
 
     # ✅ 시장 데이터 로드 (웹 기반 관심 목록 반영)
     GLOBAL_TICKERS = ['AAPL', '^GSPC', 'MSFT'] + watchlist

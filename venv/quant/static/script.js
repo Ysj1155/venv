@@ -12,58 +12,85 @@ document.addEventListener("DOMContentLoaded", function () {
     if (value >= billion) return (value / billion).toFixed(1) + "B";
     if (value >= million) return (value / million).toFixed(1) + "M";
     return value.toLocaleString();
-}
+    }
 
-function interpretRSI(rsi) {
-    if (rsi > 70) return "과매수 📈";
-    if (rsi < 30) return "과매도 📉";
-    return "보통 ⚖️";
-}
+    function interpretRSI(rsi) {
+        if (rsi > 70) return "과매수 📈";
+        if (rsi < 30) return "과매도 📉";
+        return "보통 ⚖️";
+    }
 
-function createWatchlistItem(ticker) {
-    const li = document.createElement("li");
-    li.style.display = "flex";
-    li.style.justifyContent = "space-between";
-    li.style.alignItems = "center";
-    li.style.padding = "4px 8px";
-    // 티커 텍스트
-    const span = document.createElement("span");
-    span.textContent = ticker;
-        span.style.cursor = "pointer";
-    span.title = "클릭하면 분석 정보를 확인합니다";
+    function createWatchlistItem(ticker) {
+        const li = document.createElement("li");
+        li.style.display = "flex";
+        li.style.justifyContent = "space-between";
+        li.style.alignItems = "center";
+        li.style.padding = "4px 8px";
+        // 티커 텍스트
+        const span = document.createElement("span");
+        span.textContent = ticker;
+            span.style.cursor = "pointer";
+        span.title = "클릭하면 분석 정보를 확인합니다";
 
-    // ✅ 클릭 시 분석 정보 로드
-        span.addEventListener("click", () => {
-        fetch(`/get_stock_detail_finnhub?ticker=${ticker}`)
-            .then(response => response.json())
-            .then(data => {
-                const panel = document.getElementById("stock-detail-panel");
-                const content = document.getElementById("detail-content");
+        // ✅ 클릭 시 분석 정보 로드
+            span.addEventListener("click", () => {
+    const panel = document.getElementById("stock-detail-panel");
+    const content = document.getElementById("detail-content");
 
-                if (data.error) {
-                    content.innerHTML = `<p style="color:red;">❌ ${data.error}</p>`;
-                } else {
-                    const price = data.price?.c || 'N/A';
-                    const marketCap = data.profile?.marketCapitalization || 'N/A';
-                    const per = data.metrics?.metric?.peTTM || 'N/A';
-                    const dividendYield = data.metrics?.metric?.currentDividendYieldTTM || 0;
+    // ✅ 1차: 기본 재무 데이터 로드
+    fetch(`/get_stock_detail_finnhub?ticker=${ticker}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                content.innerHTML = `<p style="color:red;">❌ ${data.error}</p>`;
+                return;
+            }
 
-                    content.innerHTML = `
-                        <h5>${data.profile?.name} (${ticker})</h5>
-                        <p><strong>📈 현재가:</strong> $${price}</p>
-                        <p><strong>💰 시가총액:</strong> ${formatMarketCap(marketCap)}</p>
-                        <p><strong>📊 PER:</strong> ${per}</p>
-                        <p><strong>📤 배당률:</strong> ${(dividendYield * 100).toFixed(2)}%</p>
-                        <p><strong>📍 RSI:</strong> 계산 필요</p>
-                        <p><strong>📉 골든크로스:</strong> 계산 필요</p>
-                    `;
+            const price = data.price?.c || 'N/A';
+            const marketCap = data.profile?.marketCapitalization || 'N/A';
+            const per = data.metrics?.metric?.peTTM || 'N/A';
+            const dividendYield = data.metrics?.metric?.currentDividendYieldTTM || 0;
 
-                    panel.style.display = "block";
-                }
-            })
-            .catch(error => console.error("❌ fetch error:", error));
+            content.innerHTML = `
+                <h5>${data.profile?.name} (${ticker})</h5>
+                <p><strong>📈 현재가:</strong> $${price}</p>
+                <p><strong>💰 시가총액:</strong> ${formatMarketCap(marketCap)}</p>
+                <p><strong>📊 PER:</strong> ${per}</p>
+                <p><strong>📤 배당률:</strong> ${(dividendYield * 100).toFixed(2)}%</p>
+            `;
+
+            fetch(`/get_stock_chart_kis?ticker=${ticker}&exchange=NAS`)
+    .then(res => res.json())
+    .then(data => {
+        if (data.error) {
+            console.error("KIS 데이터 불러오기 실패", data.error);
+            chartDiv.innerHTML = `<p style="color:red;">KIS 데이터 불러오기 실패</p>`;
+            return;
+        }
+
+        const ohlc = data.ohlc;
+        const dates = ohlc.map(x => x.date);
+        const opens = ohlc.map(x => x.open);
+        const highs = ohlc.map(x => x.high);
+        const lows = ohlc.map(x => x.low);
+        const closes = ohlc.map(x => x.close);
+
+        Plotly.newPlot("stock-price-chart", [{
+            x: dates,
+            open: opens,
+            high: highs,
+            low: lows,
+            close: closes,
+            type: 'candlestick',
+            name: `${ticker} KIS Candlestick`
+        }], {
+            title: `${ticker} 캔들차트 (KIS API)`
+        });
+    })
+    .catch(err => {
+        console.error("KIS fetch error:", err);
+        chartDiv.innerHTML = `<p style="color:red;">KIS 캔들차트 로드 실패</p>`;
     });
-
 
     // ❌ 삭제 버튼
     const deleteBtn = document.createElement("button");

@@ -5,11 +5,14 @@ from finnhub_api import (
     get_quote_raw, get_profile_raw, get_metrics_raw,
     get_price_target_raw, get_company_news_raw, get_etf_holdings_raw
 )
+from flask import jsonify
+from kis_api import get_overseas_daily_price
+import yfinance as yf
 import FinanceDataReader as fdr
 import pandas as pd
-import requests, markdown                          # API 요청 + Markdown to HTML
-import csv_manager                                  # CSV 데이터 처리 모듈
-import json
+import requests, markdown
+import csv_manager
+import json, time, config
 
 app = Flask(__name__)
 
@@ -210,30 +213,47 @@ def get_exchange_rate_data():
 @app.route("/get_stock_detail_finnhub")
 def get_stock_detail_finnhub():
     ticker = request.args.get("ticker", "").upper()
-
-    # 필요한 함수 import
-    from finnhub_api import (
-        get_quote_raw, get_profile_raw, get_metrics_raw,
-        get_price_target_raw, get_company_news_raw
-    )
-
-    # 각 데이터 가져오기
+    # 기본 정보
     price = get_quote_raw(ticker)
     profile = get_profile_raw(ticker)
     metrics = get_metrics_raw(ticker)
-    target = get_price_target_raw(ticker)
-    news = get_company_news_raw(ticker, "2024-06-01", "2024-06-27")
 
-    # JSON으로 묶어 반환
     return jsonify({
         "ticker": ticker,
         "price": price,
         "profile": profile,
         "metrics": metrics,
-        "price_target": target,
-        "news": news
     })
 
+@app.route("/get_stock_chart_kis")
+def get_stock_chart_kis():
+    """
+    Flask route – 한국투자증권 기간별시세 캔들차트 데이터 반환
+    """
+    ticker = request.args.get("ticker", "").upper()
+    exchange = request.args.get("exchange", "NAS")  # 기본 나스닥
+
+    try:
+        data = get_overseas_daily_price(ticker, exchange)
+        if "output2" not in data:
+            return jsonify({"error": "데이터 조회 실패", "raw": data})
+
+        ohlc = []
+        for row in data["output2"]:
+            ohlc.append({
+                "date": row["xymd"],
+                "open": float(row["open"]),
+                "high": float(row["high"]),
+                "low": float(row["low"]),
+                "close": float(row["clos"]),
+                "volume": int(row["tvol"])
+            })
+
+        return jsonify({"ticker": ticker, "ohlc": ohlc})
+
+    except Exception as e:
+        print(f"❌ get_stock_chart_kis error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/favicon.ico')
 def favicon():
