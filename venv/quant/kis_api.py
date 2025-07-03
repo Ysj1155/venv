@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 APP_KEY = os.getenv("APP_KEY")
-APP_Secret = os.getenv("APP_SECRET")
+APP_SECRET = os.getenv("APP_SECRET")
 URL_BASE = "https://openapivts.koreainvestment.com:29443"
 
 # 계좌번호 split
@@ -32,21 +32,21 @@ domain_info = pykis.DomainInfo(kind="virtual")
 api = pykis.Api(key_info=key_info, domain_info=domain_info, account_info=account_info)
 
 def get_kis_access_token():
-    """
-    한국투자증권 Open API access token 발급 함수
-    """
-    headers = {"content-type": "application/json"}
+    headers = {"content-type": "application/json; charset=UTF-8"}
     body = {
         "grant_type": "client_credentials",
         "appkey": APP_KEY,
         "appsecret": APP_SECRET
     }
-    URL = f"{URL_BASE}/oauth2/tokenP"
-
-    res = requests.post(URL, headers=headers, data=json.dumps(body))
+    url = f"{URL_BASE}/oauth2/tokenP"
+    res = requests.post(url, headers=headers, data=json.dumps(body))
     res.raise_for_status()
     ACCESS_TOKEN = res.json()["access_token"]
     return ACCESS_TOKEN
+
+if __name__ == "__main__":
+    token = get_kis_access_token()
+    print("Access Token:", token)
 
 def get_overseas_daily_price(ticker, exchange="NAS"):
     """
@@ -56,12 +56,13 @@ def get_overseas_daily_price(ticker, exchange="NAS"):
 
     url = f"{URL_BASE}/uapi/overseas-price/v1/quotations/dailyprice"
     headers = {
-        "content-type": "application/json",
+        "content-type": "application/json; charset=UTF-8",
         "authorization": f"Bearer {token}",
         "appkey": APP_KEY,
         "appsecret": APP_SECRET,
         "tr_id": "HHDFS76240000",
     }
+
     import time
     now = time.strftime("%Y%m%d")
     params = {
@@ -76,3 +77,11 @@ def get_overseas_daily_price(ticker, exchange="NAS"):
     res = requests.get(url, headers=headers, params=params)
     res.raise_for_status()
     return res.json()
+
+if __name__ == "__main__":
+    token = get_kis_access_token()
+    print("Access Token:", token)
+
+    # ✅ 해외주식 캔들차트 테스트
+    data = get_overseas_daily_price("NVDA", "NAS")
+    print(json.dumps(data, indent=2, ensure_ascii=False))

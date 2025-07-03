@@ -5,13 +5,14 @@ document.addEventListener("DOMContentLoaded", function () {
         document.querySelectorAll(".nav-link").forEach(link => link.classList.remove("active"));
         document.getElementById(`tab-${tabId}`).classList.add("active");
     }
+
     function formatMarketCap(value) {
-    if (!value) return "N/A";
-    const billion = 1_000_000_000;
-    const million = 1_000_000;
-    if (value >= billion) return (value / billion).toFixed(1) + "B";
-    if (value >= million) return (value / million).toFixed(1) + "M";
-    return value.toLocaleString();
+        if (!value) return "N/A";
+        const billion = 1_000_000_000;
+        const million = 1_000_000;
+        if (value >= billion) return (value / billion).toFixed(1) + "B";
+        if (value >= million) return (value / million).toFixed(1) + "M";
+        return value.toLocaleString();
     }
 
     function interpretRSI(rsi) {
@@ -26,102 +27,122 @@ document.addEventListener("DOMContentLoaded", function () {
         li.style.justifyContent = "space-between";
         li.style.alignItems = "center";
         li.style.padding = "4px 8px";
-        // 티커 텍스트
+
         const span = document.createElement("span");
         span.textContent = ticker;
-            span.style.cursor = "pointer";
+        span.style.cursor = "pointer";
         span.title = "클릭하면 분석 정보를 확인합니다";
 
         // ✅ 클릭 시 분석 정보 로드
-            span.addEventListener("click", () => {
-    const panel = document.getElementById("stock-detail-panel");
-    const content = document.getElementById("detail-content");
+        span.addEventListener("click", () => {
+            const panel = document.getElementById("stock-detail-panel");
+            const content = document.getElementById("detail-content");
 
-    // ✅ 1차: 기본 재무 데이터 로드
-    fetch(`/get_stock_detail_finnhub?ticker=${ticker}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                content.innerHTML = `<p style="color:red;">❌ ${data.error}</p>`;
-                return;
-            }
+            // 🔄 로딩 표시 초기화
+            content.innerHTML = `<p>🔄 데이터 로딩중...</p>`;
 
-            const price = data.price?.c || 'N/A';
-            const marketCap = data.profile?.marketCapitalization || 'N/A';
-            const per = data.metrics?.metric?.peTTM || 'N/A';
-            const dividendYield = data.metrics?.metric?.currentDividendYieldTTM || 0;
+            // ✅ 1차: Finnhub 기본 재무 데이터 로드
+            fetch(`/get_stock_detail_finnhub?ticker=${ticker}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        content.innerHTML = `<p style="color:red;">❌ ${data.error}</p>`;
+                        return;
+                    }
 
-            content.innerHTML = `
-                <h5>${data.profile?.name} (${ticker})</h5>
-                <p><strong>📈 현재가:</strong> $${price}</p>
-                <p><strong>💰 시가총액:</strong> ${formatMarketCap(marketCap)}</p>
-                <p><strong>📊 PER:</strong> ${per}</p>
-                <p><strong>📤 배당률:</strong> ${(dividendYield * 100).toFixed(2)}%</p>
-            `;
+                    const price = data.price?.c || 'N/A';
+                    const marketCap = data.profile?.marketCapitalization || 'N/A';
+                    const per = data.metrics?.metric?.peTTM || 'N/A';
+                    const dividendYield = data.metrics?.metric?.currentDividendYieldTTM || 0;
 
-            fetch(`/get_stock_chart_kis?ticker=${ticker}&exchange=NAS`)
-    .then(res => res.json())
-    .then(data => {
-        if (data.error) {
-            console.error("KIS 데이터 불러오기 실패", data.error);
-            chartDiv.innerHTML = `<p style="color:red;">KIS 데이터 불러오기 실패</p>`;
-            return;
-        }
+                    content.innerHTML = `
+                    <h5>${data.profile?.name} (${ticker})</h5>
+                    <p><strong>📈 현재가:</strong> $${price}</p>
+                    <p><strong>💰 시가총액:</strong> ${formatMarketCap(marketCap)}</p>
+                    <p><strong>📊 PER:</strong> ${per}</p>
+                    <p><strong>📤 배당률:</strong> ${(dividendYield * 100).toFixed(2)}%</p>
+                `;
 
-        const ohlc = data.ohlc;
-        const dates = ohlc.map(x => x.date);
-        const opens = ohlc.map(x => x.open);
-        const highs = ohlc.map(x => x.high);
-        const lows = ohlc.map(x => x.low);
-        const closes = ohlc.map(x => x.close);
+                    // ✅ KIS 차트 div 추가
+                    const kisChartDiv = document.createElement("div");
+                    kisChartDiv.id = "kis-candle-chart";
+                    kisChartDiv.style.height = "400px";
+                    kisChartDiv.style.marginTop = "20px";
+                    kisChartDiv.innerHTML = "🔄 KIS 캔들차트 로딩중...";
+                    content.appendChild(kisChartDiv);
 
-        Plotly.newPlot("stock-price-chart", [{
-            x: dates,
-            open: opens,
-            high: highs,
-            low: lows,
-            close: closes,
-            type: 'candlestick',
-            name: `${ticker} KIS Candlestick`
-        }], {
-            title: `${ticker} 캔들차트 (KIS API)`
+                    // ✅ 2차: KIS 캔들차트 데이터 fetch
+                    fetch(`/get_stock_chart_kis?ticker=${ticker}&exchange=NAS`)
+                        .then(res => res.json())
+                        .then(kisData => {
+                            if (kisData.error) {
+                                console.error("KIS 데이터 불러오기 실패", kisData.error);
+                                kisChartDiv.innerHTML = `<p style="color:red;">KIS 데이터 불러오기 실패: ${kisData.error}</p>`;
+                                return;
+                            }
+
+                            const ohlc = kisData.ohlc;
+                            const dates = ohlc.map(x => x.date);
+                            const opens = ohlc.map(x => x.open);
+                            const highs = ohlc.map(x => x.high);
+                            const lows = ohlc.map(x => x.low);
+                            const closes = ohlc.map(x => x.close);
+
+                            Plotly.newPlot("kis-candle-chart", [{
+                                x: dates,
+                                open: opens,
+                                high: highs,
+                                low: lows,
+                                close: closes,
+                                type: 'candlestick',
+                                name: `${ticker} KIS Candlestick`
+                            }], {
+                                title: `${ticker} 캔들차트 (KIS API)`
+                            });
+                        })
+                        .catch(err => {
+                            console.error("KIS fetch error:", err);
+                            kisChartDiv.innerHTML = `<p style="color:red;">KIS 캔들차트 로드 실패</p>`;
+                        });
+                })
+                .catch(error => {
+                    console.error("Finnhub fetch error:", error);
+                    content.innerHTML = `<p style="color:red;">❌ Finnhub 데이터 요청 실패</p>`;
+                });
+
+            panel.style.display = "block";
         });
-    })
-    .catch(err => {
-        console.error("KIS fetch error:", err);
-        chartDiv.innerHTML = `<p style="color:red;">KIS 캔들차트 로드 실패</p>`;
-    });
 
-    // ❌ 삭제 버튼
-    const deleteBtn = document.createElement("button");
-    deleteBtn.textContent = "❌";
-    deleteBtn.style.border = "none";
-    deleteBtn.style.background = "none";
-    deleteBtn.style.cursor = "pointer";
-    deleteBtn.style.color = "red";
-    deleteBtn.title = "관심 목록에서 제거";
+        // ❌ 삭제 버튼
+        const deleteBtn = document.createElement("button");
+        deleteBtn.textContent = "❌";
+        deleteBtn.style.border = "none";
+        deleteBtn.style.background = "none";
+        deleteBtn.style.cursor = "pointer";
+        deleteBtn.style.color = "red";
+        deleteBtn.title = "관심 목록에서 제거";
 
-    deleteBtn.addEventListener("click", () => {
-        if (confirm(`${ticker} 티커를 관심 목록에서 삭제할까요?`)) {
-            fetch("/remove_watchlist", {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ticker: ticker })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    alert(data.error);
-                } else {
-                    li.remove();
-                }
-            });
-        }
-    });
-    li.appendChild(span);
-    li.appendChild(deleteBtn);
-    return li;
-}
+        deleteBtn.addEventListener("click", () => {
+            if (confirm(`${ticker} 티커를 관심 목록에서 삭제할까요?`)) {
+                fetch("/remove_watchlist", {
+                    method: "DELETE",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ticker: ticker})
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            alert(data.error);
+                        } else {
+                            li.remove();
+                        }
+                    });
+            }
+        });
+        li.appendChild(span);
+        li.appendChild(deleteBtn);
+        return li;
+    }
     window.showTab = showTab; // 글로벌 함수 등록
     // portfolio_data.csv 테이블
     fetch("/get_portfolio_data")

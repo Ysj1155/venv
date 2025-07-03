@@ -227,11 +227,8 @@ def get_stock_detail_finnhub():
 
 @app.route("/get_stock_chart_kis")
 def get_stock_chart_kis():
-    """
-    Flask route – 한국투자증권 기간별시세 캔들차트 데이터 반환
-    """
     ticker = request.args.get("ticker", "").upper()
-    exchange = request.args.get("exchange", "NAS")  # 기본 나스닥
+    exchange = request.args.get("exchange", "NAS")
 
     try:
         data = get_overseas_daily_price(ticker, exchange)
