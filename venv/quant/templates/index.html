@@ -12,22 +12,22 @@
 <body>
     <div class="container mt-4">
         <h2 class="text-center">📊 투자 대시보드</h2>
-        <ul class="nav nav-tabs" id="dashboard-tabs">
+        <ul class="nav nav-tabs" id="dashboard-tabs" role="tablist">
             <li class="nav-item">
-                <a class="nav-link active" id="tab-dashboard" href="#" onclick="showTab('dashboard')">📊 개인 계좌</a>
+                <a class="nav-link active" id="tab-dashboard" href="#" onclick="showTab('dashboard')" role="tab">📊 개인 계좌</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" id="tab-data" href="#" onclick="showTab('data')">📈 보조 자료</a>
+                <a class="nav-link" id="tab-data" href="#" onclick="showTab('data')" role="tab">📈 보조 자료</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" id="tab-watchlist" href="#" onclick="showTab('watchlist')">⭐ 관심 목록</a>
+                <a class="nav-link" id="tab-watchlist" href="#" onclick="showTab('watchlist')" role="tab">⭐ 관심 목록</a>
             </li>
         </ul>
+
         <!-- ✅ 개인 계좌 (Main Dashboard) -->
-        <div id="dashboard" class="tab-content mt-3">
+        <div id="dashboard" class="tab-content mt-3" role="tabpanel">
             <h3>📊 개인 계좌 개요</h3>
             <p id="total-value"></p>
-            <!-- ✅ 포트폴리오 데이터 테이블 -->
             <div class="mt-4">
                 <h3>📋 포트폴리오 내역</h3>
                 <table class="table table-bordered">
@@ -42,48 +42,52 @@
                             <th>손익률</th>
                         </tr>
                     </thead>
-                    <tbody id="portfolio-table-body">
-                        <!-- 데이터가 동적으로 추가될 부분 -->
-                    </tbody>
+                    <tbody id="portfolio-table-body"></tbody>
                 </table>
             </div>
-            <div id="profit-chart"></div>
-            <div id="pie-chart"></div>
+            <div id="profit-chart" style="height: 400px;"></div>
+            <div id="pie-chart" style="height: 400px;"></div>
         </div>
+
         <!-- ✅ 보조 자료 (Supplementary Data) -->
-        <div id="data" class="tab-content mt-3" style="display: none;">
+        <div id="data" class="tab-content mt-3" role="tabpanel" style="display: none;">
             <h3>📈 보조 자료</h3>
-            <div class="treemap-container">
-                <div id="sp500-treemap"></div>
-                <div id="portfolio-treemap"></div>
-            </div>
-            <div id="exchange-rate-chart"></div>
+            <div class="col-md-6" id="sp500-treemap" style="height: 500px;"></div>
+            <div class="col-md-6" id="portfolio-treemap" style="height: 500px;"></div>
+            <div id="exchange-rate-chart" style="height: 500px;"></div>
         </div>
 
-    <!-- ✅ 관심 목록 (Watchlist) -->
-    <div id="watchlist" class="tab-content mt-3" style="display: none;">
-        <h3>⭐ 관심 목록</h3>
-        <form id="watchlist-form">
-            <input type="text" id="ticker" placeholder="티커 입력" required>
-            <button type="submit">추가</button>
-        </form>
+        <!-- ✅ 관심 목록 (Watchlist) -->
+        <div id="watchlist" class="tab-content mt-3" role="tabpanel" style="display: none;">
+            <h3>⭐ 관심 목록</h3>
+            <form id="watchlist-form" class="mb-3">
+                <div class="input-group">
+                    <label class="visually-hidden" for="ticker">티커</label>
+                    <input type="text" id="ticker" class="form-control" placeholder="티커 입력" required>
+                    <button type="submit" class="btn btn-primary">추가</button>
+                </div>
+            </form>
 
-        <div style="display: flex; gap: 20px;">
-            <!-- 왼쪽: 관심 티커 리스트 -->
-            <ul id="watchlist-items" style="width: 200px; list-style-type: none; padding-left: 0;"></ul>
+            <div class="row">
+                <!-- 왼쪽: 관심 티커 리스트 -->
+                <div class="col-md-3">
+                    <ul id="watchlist-items" class="list-group"></ul>
+                </div>
 
-            <!-- 오른쪽: 분석 정보 패널 -->
-            <div id="stock-detail-panel" style="display: none; flex: 1; border-left: 1px solid #ccc; padding-left: 20px;">
-                <h4 id="detail-title">📊 종목 분석</h4>
-                <div id="detail-content">
-                    티커를 선택하면 상세 정보가 여기에 표시됩니다.
-                    <div id="kis-candle-chart" style="height: 500px; margin-top: 20px;"></div>
+                <!-- 오른쪽: 분석 정보 패널 -->
+                <div class="col-md-9">
+                    <div id="stock-detail-panel" class="border-start ps-3" style="display: none;">
+                        <h4 id="detail-title">📊 종목 분석</h4>
+                        <div id="detail-content">
+                            티커를 선택하면 상세 정보가 여기에 표시됩니다.
+                            <div id="kis-candle-chart" style="height: 500px; margin-top: 20px;"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    </div>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

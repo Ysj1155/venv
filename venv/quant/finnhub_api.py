@@ -78,6 +78,7 @@ def get_candle_data(ticker, days=90):
         "close": res["c"]
     })
     df["date"] = pd.to_datetime(df["timestamp"], unit="s")
+    df = df[df['date'].dt.dayofweek < 5]
     return df
 
 # 기술 지표 계산 (MA5, MA20, RSI)

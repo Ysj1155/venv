@@ -40,7 +40,6 @@ def get_kis_access_token():
     global kis_token, kis_token_expiry
 
     if kis_token and time.time() < kis_token_expiry - 10:
-        print("✅ 기존 access_token 재사용")
         return kis_token
 
     conn = http.client.HTTPSConnection("openapivts.koreainvestment.com", 29443)
@@ -56,7 +55,6 @@ def get_kis_access_token():
     res = conn.getresponse()
     data = res.read()
     decoded = json.loads(data.decode("utf-8"))
-    print("🔎 access_token response:", decoded)
 
     if "access_token" in decoded:
         kis_token = decoded["access_token"]
@@ -93,8 +91,3 @@ def get_overseas_daily_price(ticker, exchange="NAS"):
 
 if __name__ == "__main__":
     token = get_kis_access_token()
-    print("Access Token:", token)
-
-    # ✅ 해외주식 캔들차트 테스트
-    data = get_overseas_daily_price("NVDA", "NAS")
-    print(json.dumps(data, indent=2, ensure_ascii=False))
