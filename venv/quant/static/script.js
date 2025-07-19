@@ -11,6 +11,7 @@ function initApp() {
     loadTreemaps();
     loadWatchlist();
     setupWatchlistForm();
+    setupPrivacyToggle();
 }
 
 function showTab(tabId) {
@@ -200,7 +201,6 @@ function loadWatchlist() {
         });
     });
 }
-
 function setupWatchlistForm() {
     document.getElementById("watchlist-form").addEventListener("submit", function(event) {
         event.preventDefault();
@@ -260,7 +260,11 @@ function createWatchlistItem(ticker) {
                 kisChartDiv.id = "kis-candle-chart";
                 kisChartDiv.style.height = "500px";
                 kisChartDiv.style.marginTop = "20px";
-                kisChartDiv.innerHTML = "🔄 KIS 캔들차트 로딩중...";
+
+                const loadingSpan = document.createElement("span");
+                loadingSpan.id = "kis-loading-text";
+                loadingSpan.textContent = "🔄 KIS 캔들차트 로딩중...";
+                kisChartDiv.appendChild(loadingSpan);
                 content.appendChild(kisChartDiv);
 
                 fetch(`/get_stock_chart_kis?ticker=${ticker}&exchange=NAS`)
@@ -273,7 +277,10 @@ function createWatchlistItem(ticker) {
                         }
 
                         const ohlc = kisData.ohlc;
-                        const dates = ohlc.map(x => x.date);
+                        const dates = ohlc.map(x => {
+                            const d = x.date;
+                            return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;  // '2025-02-18'
+                        });
                         const opens = ohlc.map(x => x.open);
                         const highs = ohlc.map(x => x.high);
                         const lows = ohlc.map(x => x.low);
@@ -320,7 +327,7 @@ function createWatchlistItem(ticker) {
                             margin: { t: 40, b: 50 },
                             showlegend: false
                         }).then(() => {
-                            //kisChartDiv.innerHTML = "";
+                            //kisChartDiv.textContent = "";
                         });
                     })
                     .catch(err => {
@@ -363,4 +370,17 @@ function createWatchlistItem(ticker) {
     li.appendChild(span);
     li.appendChild(deleteBtn);
     return li;
+}
+// 🔒 개인정보 숨기기 버튼
+function setupPrivacyToggle() {
+    const btn = document.getElementById("toggle-privacy-btn");
+    let hidden = false;
+
+    btn.addEventListener("click", () => {
+        document.querySelectorAll(".privacy-sensitive").forEach(el => {
+            el.style.visibility = hidden ? "visible" : "hidden";
+        });
+        btn.textContent = hidden ? "🔒 정보 숨기기" : "🔓 정보 보이기";
+        hidden = !hidden;
+    });
 }

@@ -27,10 +27,13 @@
         <!-- ✅ 개인 계좌 (Main Dashboard) -->
         <div id="dashboard" class="tab-content mt-3" role="tabpanel">
             <h3>📊 개인 계좌 개요</h3>
-            <p id="total-value"></p>
+            <p id="total-value" class="privacy-sensitive"></p>
             <div class="mt-4">
+                <div class="d-flex justify-content-between align-items-center mt-4">
                 <h3>📋 포트폴리오 내역</h3>
-                <table class="table table-bordered">
+                <button id="toggle-privacy-btn" class="btn btn-secondary">🔒 정보 숨기기</button>
+                </div>
+                <table class="table table-bordered privacy-sensitive">
                     <thead>
                         <tr>
                             <th>계좌번호</th>

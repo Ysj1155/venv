@@ -82,3 +82,7 @@ form button {
     display: block;
     margin: 0 auto;
 }
+/* 선택적으로 부드러운 효과 추가 */
+.privacy-sensitive {
+    transition: visibility 0.3s ease;
+}
