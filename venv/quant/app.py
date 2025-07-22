@@ -6,8 +6,8 @@ from api.finnhub_api import (
     get_price_target_raw, get_company_news_raw, get_etf_holdings_raw
 )
 from api.kis_api import get_overseas_daily_price
-from utils import load_watchlist_file, save_watchlist_file, parse_kis_ohlc
-from db.db import get_connection
+from utils import parse_kis_ohlc
+from db.migration import migrate_portfolio, migrate_account_value
 import yfinance as yf
 import FinanceDataReader as fdr
 import pandas as pd
@@ -16,6 +16,14 @@ import data.csv_manager
 import json, time, config
 
 app = Flask(__name__)
+
+# 앱 실행 전 자동 마이그레이션
+try:
+    migrate_portfolio()
+    migrate_account_value()
+    print("✅ DB 자동 마이그레이션 완료")
+except Exception as e:
+    print(f"❌ 마이그레이션 오류: {e}")
 
 @app.route("/")
 def index():

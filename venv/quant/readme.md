@@ -1,7 +1,35 @@
 # Trading Assistant
 
-이 프로젝트는 주식 포트폴리오를 관리하고 시각화하는 웹 애플리케이션입니다. 사용자는 보유 주식을 추가하고, 전체 자산의 구성과 수익률을 그래프로 확인할 수 있으며, 실시간 환율 정보도 제공합니다.
+이 프로젝트는 개인의 주식 포트폴리오를 관리하고 시각화하는 Flask 기반의 웹 애플리케이션입니다.  
+**MySQL 기반 백엔드**, **KIS 및 Finnhub API 연동**, **Plotly 시각화**를 통해 실시간 정보와 보유 자산을 종합적으로 분석할 수 있습니다.
 
+---
+
+## ✅ 주요 기능
+
+### 📊 대시보드
+
+- **포트폴리오 시각화**  
+  MySQL에 저장된 데이터를 기반으로, 보유 종목의 수익률/평가금액/비중을 테이블과 파이 차트로 표시
+
+- **계좌 잔고 추적**  
+  `account_value` 테이블에서 날짜별 평가금액을 불러와 꺾은선 그래프와 수익률을 동시에 표시
+
+- **섹터 분배 시각화**  
+  S&P500 기준 섹터별 트리맵 + 내 보유 자산의 섹터별 비중을 비교 분석
+
+- **환율 차트 시각화**  
+  `USD/KRW` 환율 데이터를 선형 그래프로 표시 (FinanceDataReader 이용)
+
+---
+
+### ⭐ 관심 목록 (Watchlist)
+
+- 종목 추가/삭제 가능 (프론트엔드에서 실시간 갱신)
+- 종목 클릭 시:
+  - **Finnhub API**로 실시간 시세, PER, 시총, 배당률 등 표시
+  - **KIS API**로 일봉 캔들차트 + 거래량 표시
+- DB 기반으로 전환되어 `watchlist.json` 파일 없이 완전 자동화됨
 ## 추가 예정 기능
 
 - **관심 종목 분석 기능**: 관심 종목 리스트에서 각 종목의 5일, 10일, 20일 이동 평균선과 거래량을 시각화할 예정입니다. 관심 목록은 티커를 입력하면 API를 통해 관련 종목 정보를 업데이트하여 나열합니다.  
@@ -15,7 +43,6 @@
   - 실시간 뉴스 헤드라인 또는 공시 정보 연동
 - **골든크로스/데드크로스 알림**: 위의 이동 평균선을 기반으로 골든크로스 및 데드크로스 발생 시 디스코드를 통해 실시간 알림을 제공하는 기능을 추가할 예정입니다.
 - **핸드폰 연동 시스템**: unity나 다른 방법을 사용해서 핸드폰으로 같은 화면을 볼 수 있는 방안 모색
-- **csv 데이터들 mysql로 데이터베이스화 해서 정리하기**
 ## 주요 기능
 
 - **포트폴리오 시각화**: 원형 다이어그램을 통해 보유 자산의 구성과 비율을 시각적으로 확인할 수 있습니다.
@@ -24,66 +51,76 @@
 - **섹터 분배 시각화**: 보유 포트폴리오의 섹터별 비중을 트리맵 형태로 시각화하여, 시장과의 비교 분석이 가능합니다.
 - **관심목록 관리**: 관심 있는 주식 종목을 리스트에 추가하고 관리할 수 있으며, 추후 알림 기능을 추가할 예정입니다.
 
-## 설치 및 실행 방법
+## 🔧 설치 및 실행
 
-1. **저장소 클론**:
+```bash
+git clone https://github.com/Ysj1155/venv.git
+cd venv
 
-   ```bash
-   git clone https://github.com/Ysj1155/venv.git
-   ```
+# 가상환경 설정 (선택)
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
-2. **필요한 패키지 설치**:
+# 패키지 설치
+pip install -r requirements.txt
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+# .env 파일 생성
+cp .env.example .env  # 또는 직접 appkey/secret 입력
 
-3. **애플리케이션 실행**:
-   `app.py` 파일을 실행하여 Flask 서버를 시작합니다.
-
-   ```bash
-   python app.py
-   ```
-
-4. **웹 브라우저에서 접속**:
-
-   ```
-   http://127.0.0.1:5000/
-   ```
+# Flask 서버 실행
+python app.py
 
 ## 파일 구조
 
 ```
 quant/
-├── app.py              # Flask 애플리케이션 메인 파일
-├── csv_manager.py      # CSV 데이터 처리 모듈
-├── main.py             # 데이터 로드 및 주식 목록 관리
-├── config.py           # 환경 설정 및 기본 데이터 관리
-├── templates/
-│   └── index.html      # 메인 페이지 템플릿
-├── static/
-│   ├── styles.css      # 스타일시트
-│   └── script.js       # 클라이언트 사이드 스크립트
-└── data/
-    ├── portfolio_data.csv   # 포트폴리오 데이터 저장 파일
-    └── account_value.csv    # 계좌 잔고 데이터 저장 파일
+├── app.py                  # Flask 서버 진입점 (라우팅 포함)
+├── main.py                 # 관심 종목 수집 실행 스크립트
+├── config.py               # .env 로드 및 API 키 관리
+├── db/
+│   └── db.py               # get_connection() 기반 MySQL 연결 관리
+├── api/
+│   ├── finnhub_api.py      # Finnhub API 연동 및 지표 계산
+│   └── kis_api.py          # KIS API 연동 및 캔들 데이터 조회
+├── utils.py                # KIS OHLC 변환 유틸리티
+├── templates/index.html    # 대시보드 템플릿
+├── static/script.js        # JS 로직 (차트 렌더링, 이벤트 처리)
+├── data/                   # 수동 입력 데이터 (초기 마이그레이션용)
+│   ├── portfolio_data.csv
+│   └── account_value.csv
+├── requirements.txt
+└── readme.md
 ```
 
 ## API 엔드포인트
 
-- `/get_pie_chart_data`: 원형 차트 데이터 반환
-- `/get_account_value_data`: 계좌 잔고 및 수익률 데이터 반환
-- `/get_exchange_rate_data`: USD/KRW 환율 데이터 반환
-- `/get_treemap_data`: S&P 500 섹터 변동률 데이터 반환
-- `/get_portfolio_sector_data`: 내 포트폴리오 섹터 분포 데이터 반환
-- `/add_watchlist`: 관심 종목 추가
-- `/get_watchlist`: 관심 종목 리스트 반환
+- /get_portfolio_data:        보유 종목 데이터 조회
+- /get_pie_chart_data:        자산 비중 파이차트 데이터
+- /get_account_value_data:    총 자산 추이 및 수익률
+- /get_watchlist:             관심 종목 리스트 불러오기
+- /add_watchlist:             관심 종목 추가
+- /remove_watchlist:          관심 종목 삭제
+- /get_stock_detail_finnhub:  종목 기본 정보 (시가총액, PER 등)
+- /get_stock_chart_kis:       KIS 일봉 차트 데이터
+- /get_exchange_rate_data:    USD/KRW 환율 데이터
+- /get_treemap_data	S&P500:   섹터별 등락률
+- /get_portfolio_sector_data: 내 자산의 섹터 분포
 
 ## 업데이트 내역
-
-- **[업데이트 날짜]**: `csv_manager.py`의 계좌 잔고 및 포트폴리오 데이터 처리 로직 개선
-- **[업데이트 날짜]**: 관심 종목 관리 기능 추가 및 UI 개선
-- **[업데이트 날짜]**: Flask API 엔드포인트 추가 및 데이터 시각화 기능 확장
-
+### ✅ [2025-07-22] MySQL 기반 전체 리팩터링 및 API 전환 완료
+- 기존 CSV/JSON 파일 기반 구조에서 MySQL DB 기반으로 전환
+- 주요 데이터(`portfolio`, `account_value`, `watchlist`)를 DB에 마이그레이션
+- Flask API 리팩터링 완료:
+  - `/get_portfolio_data`: 포트폴리오 DB 조회
+  - `/get_account_value_data`: 평가금액 및 수익률 DB 조회
+  - `/get_pie_chart_data`: 자산 비중 계산
+  - `/get_watchlist`: 관심 종목 목록 DB 조회
+  - `/add_watchlist`, `/remove_watchlist`: 관심 종목 DB 추가/삭제 처리
+  - `/get_portfolio_sector_data`: 포트폴리오 섹터 분포 계산 (FDR + DB 연동)
+- `db.py` 개선: `get_connection()` 함수 방식으로 안전한 커넥션 분리 구조 적용
+- 모든 API에서 커서 및 커넥션을 지역화(`with conn.cursor(...)`)하여 안정성 확보
+- `int64` 직렬화 오류 수정 (`int()` 처리)
+- `watchlist.json` 파일 사용 중단 → MySQL `watchlist` 테이블로 완전 전환
+- 관련 JSON 파일 및 파일 기반 함수 제거
 ##
 
