@@ -1,17 +1,26 @@
 import json
-
+from db.db import get_connection
 WATCHLIST_PATH = "watchlist.json"
 
 def load_watchlist_file():
     try:
-        with open(WATCHLIST_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
+        with conn.cursor(dictionary=True) as cur:
+            cur.execute("SELECT ticker FROM watchlist ORDER BY created_at DESC")
+            rows = cur.fetchall()
+            return [r["ticker"] for r in rows]
+    except Exception as e:
+        print(f"❌ watchlist 불러오기 실패: {e}")
         return []
 
-def save_watchlist_file(watchlist):
-    with open(WATCHLIST_PATH, "w", encoding="utf-8") as f:
-        json.dump(watchlist, f, ensure_ascii=False, indent=2)
+def save_watchlist_file(tickers):
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM watchlist")  # 기존 전체 삭제
+            for ticker in tickers:
+                cur.execute("INSERT INTO watchlist (ticker) VALUES (%s)", (ticker,))
+            conn.commit()
+    except Exception as e:
+        print(f"❌ watchlist 저장 실패: {e}")
 
 def parse_kis_ohlc(data):
     items = data.get("output2", [])

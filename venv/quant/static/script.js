@@ -327,7 +327,8 @@ function createWatchlistItem(ticker) {
                             margin: { t: 40, b: 50 },
                             showlegend: false
                         }).then(() => {
-                            //kisChartDiv.textContent = "";
+                            const loadingText = document.getElementById("kis-loading-text");
+                            if (loadingText) loadingText.remove();
                         });
                     })
                     .catch(err => {

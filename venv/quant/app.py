@@ -1,26 +1,21 @@
 from flask import Flask, render_template, jsonify, request
 from markupsafe import Markup
 from yahooquery import Ticker
-from finnhub_api import (
+from api.finnhub_api import (
     get_quote_raw, get_profile_raw, get_metrics_raw,
     get_price_target_raw, get_company_news_raw, get_etf_holdings_raw
 )
-from kis_api import get_overseas_daily_price
+from api.kis_api import get_overseas_daily_price
 from utils import load_watchlist_file, save_watchlist_file, parse_kis_ohlc
+from db.db import get_connection
 import yfinance as yf
 import FinanceDataReader as fdr
 import pandas as pd
 import requests, markdown
-import csv_manager
+import data.csv_manager
 import json, time, config
 
 app = Flask(__name__)
-
-# ✅ 초기 데이터 로드
-csv_manager.process_account_value()
-csv_manager.process_portfolio_data()
-
-watchlist = load_watchlist_file()
 
 @app.route("/")
 def index():
@@ -36,25 +31,38 @@ def show_readme():
 @app.route("/get_portfolio_data")
 def get_portfolio_data():
     try:
-        df = pd.read_csv(csv_manager.PORTFOLIO_FILE, encoding="utf-8-sig")
-        columns = ["type", "account_number", "ticker", "profit_loss", "profit_rate",
-                   "quantity", "purchase_amount", "evaluation_amount", "evaluation_ratio"]
-        return jsonify(df[columns].to_dict(orient="records"))
+        conn = get_connection()
+        with conn.cursor(dictionary=True) as cur:
+            cur.execute("""
+                SELECT account_number, ticker, quantity,
+                       purchase_amount, evaluation_amount,
+                       profit_loss, profit_rate, evaluation_ratio
+                FROM portfolio
+            """)
+            rows = cur.fetchall()
+        conn.close()
+        return jsonify(rows)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route("/get_pie_chart_data")
 def get_pie_chart_data():
     try:
-        df = pd.read_csv(csv_manager.PORTFOLIO_FILE, encoding="utf-8-sig")
-        if df.empty:
+        conn = get_connection()
+        with conn.cursor(dictionary=True) as cur:
+            cur.execute("SELECT ticker, evaluation_amount FROM portfolio")
+            rows = cur.fetchall()
+        conn.close()
+        if not rows:
             return jsonify({"labels": [], "values": [], "total_value": "0 KRW"})
-        total_value = df["evaluation_amount"].sum()
-        values = (df["evaluation_amount"] / total_value * 100).tolist()
+        tickers = [row["ticker"] for row in rows]
+        amounts = [row["evaluation_amount"] for row in rows]
+        total = sum(amounts)
+        values = [(amt / total) * 100 if total else 0 for amt in amounts]
         return jsonify({
-            "labels": df["ticker"].tolist(),
+            "labels": tickers,
             "values": values,
-            "total_value": f"{int(total_value):,} KRW"
+            "total_value": f"{int(total):,} KRW"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -63,38 +71,77 @@ def get_pie_chart_data():
 def add_watchlist():
     data = request.get_json()
     ticker = data.get("ticker", "").upper()
-    if ticker and ticker not in [t.upper() for t in watchlist]:
-        watchlist.append(ticker)
-        save_watchlist_file(watchlist)
-        return jsonify({"message": "Ticker added", "watchlist": watchlist})
-    return jsonify({"error": "Invalid ticker or already exists"}), 400
+    if not ticker:
+        return jsonify({"error": "티커가 유효하지 않습니다"}), 400
+    try:
+        conn = get_connection()
+        with conn.cursor(dictionary=True) as cur:
+            cur.execute("SELECT COUNT(*) AS count FROM watchlist WHERE ticker = %s", (ticker,))
+            exists = cur.fetchone()["count"]
+            if exists:
+                conn.close()
+                return jsonify({"error": "이미 등록된 티커입니다"}), 400
+            cur.execute("INSERT INTO watchlist (ticker) VALUES (%s)", (ticker,))
+            conn.commit()
+            cur.execute("SELECT ticker FROM watchlist ORDER BY created_at DESC")
+            tickers = [r["ticker"] for r in cur.fetchall()]
+        conn.close()
+        return jsonify({"message": "추가 완료", "watchlist": tickers})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/get_watchlist")
 def get_watchlist():
-    return jsonify({"watchlist": watchlist})
+    try:
+        conn = get_connection()
+        with conn.cursor(dictionary=True) as cur:
+            cur.execute("SELECT ticker FROM watchlist ORDER BY created_at DESC")
+            rows = cur.fetchall()
+        conn.close()
+        tickers = [row["ticker"] for row in rows]
+        return jsonify({"watchlist": tickers})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/remove_watchlist", methods=["DELETE"])
 def remove_watchlist():
     data = request.get_json()
     ticker = data.get("ticker", "").upper()
-    if ticker in [t.upper() for t in watchlist]:
-        watchlist[:] = [t for t in watchlist if t.upper() != ticker]
-        save_watchlist_file(watchlist)
-        return jsonify({"message": f"{ticker} removed", "watchlist": watchlist})
-    return jsonify({"error": "Ticker not found"}), 400
+    try:
+        conn = get_connection()
+        with conn.cursor(dictionary=True) as cur:
+            cur.execute("DELETE FROM watchlist WHERE ticker = %s", (ticker,))
+            conn.commit()
+            cur.execute("SELECT ticker FROM watchlist ORDER BY created_at DESC")
+            tickers = [r["ticker"] for r in cur.fetchall()]
+        conn.close()
+        return jsonify({"message": f"{ticker} 삭제됨", "watchlist": tickers})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/get_account_value_data")
 def get_account_value_data():
     try:
-        df = pd.read_csv(csv_manager.ACCOUNT_VALUE_FILE, encoding="utf-8-sig")
-        initial_value = 23529530
-        df["profit"] = ((df["total_value"] - initial_value) / initial_value) * 100
+        conn = get_connection()
+        with conn.cursor(dictionary=True) as cur:
+            cur.execute("SELECT date, total_value FROM account_value ORDER BY date ASC")
+            rows = cur.fetchall()
+        conn.close()
+
+        if not rows:
+            return jsonify({"error": "No account value data found"}), 500
+
+        dates = [str(row["date"]) for row in rows]
+        values = [row["total_value"] for row in rows]
+        base = values[0]
+        profits = [(v - base) / base * 100 for v in values]
+
         return jsonify({
-            "dates": df["date"].astype(str).tolist(),
-            "total_values": df["total_value"].tolist(),
-            "profits": df["profit"].tolist(),
-            "latest_value": df.iloc[-1]["total_value"],
-            "latest_profit": df.iloc[-1]["profit"]
+            "dates": dates,
+            "total_values": values,
+            "profits": profits,
+            "latest_value": values[-1],
+            "latest_profit": profits[-1]
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -125,25 +172,37 @@ def get_treemap_data():
 @app.route("/get_portfolio_sector_data")
 def get_portfolio_sector_data():
     try:
-        df_sp500 = fdr.StockListing("S&P500")[["Symbol", "Sector"]]
-        df_sp500.rename(columns={"Symbol": "converted_ticker"}, inplace=True)
+        # 1. 영문 티커 매핑 딕셔너리
         ticker_map = {
             "애플": "AAPL", "엔비디아": "NVDA", "테슬라": "TSLA",
             "알파벳 A": "GOOGL", "아마존닷컴": "AMZN",
-            "카디널 헬스": "CAH", "TSMC(ADR)": "TSM",
-            "PROETF ULTRAPRO QQQ": "TQQQ", "INVESCO QQQ TRUST UNIT SER 1": "QQQ"
+            "TSMC(ADR)": "TSM", "카디널 헬스": "CAH",
+            "PROSHARES QQQ 3X": "TQQQ", "INVESCO QQQ TRUST UNIT SER 1": "QQQ"
         }
-        df = pd.read_csv(csv_manager.PORTFOLIO_FILE, encoding="utf-8-sig")
+        # 2. DB에서 포트폴리오 가져오기
+        conn = get_connection()
+        with conn.cursor(dictionary=True) as cur:
+            cur.execute("SELECT ticker, evaluation_amount FROM portfolio")
+            rows = cur.fetchall()
+        conn.close()
+        if not rows:
+            return jsonify({})
+        df = pd.DataFrame(rows)
         df["converted_ticker"] = df["ticker"].map(ticker_map).fillna("Unknown")
-        df["evaluation_amount"] = df["evaluation_amount"].fillna(0)
+        # 3. S&P500 섹터 정보 로딩
+        df_sp500 = fdr.StockListing("S&P500")[["Symbol", "Sector"]]
+        df_sp500.rename(columns={"Symbol": "converted_ticker"}, inplace=True)
         df = df.merge(df_sp500, on="converted_ticker", how="left")
         df["Sector"] = df["Sector"].fillna("Non-S&P 500")
-
+        # 4. 섹터별 정리
         result = {}
         for sector, group in df.groupby("Sector"):
-            stocks = [{"ticker": row["converted_ticker"], "price": row["evaluation_amount"]} for _, row in group.iterrows()]
+            stocks = [
+                {"ticker": row["converted_ticker"], "price": int(row["evaluation_amount"])}
+                for _, row in group.iterrows()
+            ]
             result[sector] = {
-                "total_value": group["evaluation_amount"].sum(),
+                "total_value": int(group["evaluation_amount"].sum()),
                 "stocks": stocks
             }
         return jsonify(result)
