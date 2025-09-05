@@ -1,5 +1,5 @@
 import pandas as pd
-from db.db import get_connection
+from utils import get_connection
 
 def clean_int(val):
     return int(float(str(val).replace(",", "").replace("%", "")))

@@ -74,22 +74,22 @@ python app.py
 
 ```
 quant/
-├── app.py                  # Flask 서버 진입점 (라우팅 포함)
+├── app.py                  # Flask 서버 진입점 (라우팅 및 API 엔드포인트)
 ├── main.py                 # 관심 종목 수집 실행 스크립트
-├── config.py               # .env 로드 및 API 키 관리
+├── config.py               # 환경변수 로드 및 API 키/DB 설정
 ├── db/
-│   └── db.py               # get_connection() 기반 MySQL 연결 관리
+│   └── migration.py        # CSV 데이터를 DB(portfolio/account_value)로 마이그레이션
 ├── api/
-│   ├── finnhub_api.py      # Finnhub API 연동 및 지표 계산
-│   └── kis_api.py          # KIS API 연동 및 캔들 데이터 조회
-├── utils.py                # KIS OHLC 변환 유틸리티
-├── templates/index.html    # 대시보드 템플릿
-├── static/script.js        # JS 로직 (차트 렌더링, 이벤트 처리)
-├── data/                   # 수동 입력 데이터 (초기 마이그레이션용)
-│   ├── portfolio_data.csv
-│   └── account_value.csv
-├── requirements.txt
-└── readme.md
+│   ├── finnhub_api.py      # Finnhub API 연동 (시세, 프로필, 지표, ETF holdings 등)
+│   └── kis_api.py          # KIS API 연동 (일봉 캔들 데이터 조회 등)
+├── utils.py                # DB 연결(get_connection), KIS OHLC 변환 유틸
+├── templates/index.html    # 대시보드 프론트엔드 뷰
+├── static/
+│   ├── styles.css          # CSS 스타일 시트
+│   └── script.js           # JS 로직 (차트 렌더링, 탭 전환, 관심목록 관리)
+├── data/                   # 초기 데이터 CSV 저장 위치
+├── requirements.txt        # 의존성 패키지 리스트
+└── readme.md               # 프로젝트 문서
 ```
 
 ## API 엔드포인트
@@ -103,7 +103,7 @@ quant/
 - /get_stock_detail_finnhub:  종목 기본 정보 (시가총액, PER 등)
 - /get_stock_chart_kis:       KIS 일봉 차트 데이터
 - /get_exchange_rate_data:    USD/KRW 환율 데이터
-- /get_treemap_data	S&P500:   섹터별 등락률
+- /get_treemap_data	S&P500:   섹터별 변동률
 - /get_portfolio_sector_data: 내 자산의 섹터 분포
 
 ## 업데이트 내역
@@ -122,5 +122,28 @@ quant/
 - `int64` 직렬화 오류 수정 (`int()` 처리)
 - `watchlist.json` 파일 사용 중단 → MySQL `watchlist` 테이블로 완전 전환
 - 관련 JSON 파일 및 파일 기반 함수 제거
+### ✅ [2025-09-05] 프론트/백엔드 통합 개선 및 섹터 분석 업그레이드
+- **포트폴리오 섹터 분석 업그레이드**
+  - `/get_portfolio_sector_data`: ETF 보유 종목까지 look-through → GICS 섹터 기준으로 분해
+  - 개별주식 + ETF를 합산한 실제 섹터 노출도를 트리맵으로 시각화
+- **프론트엔드 레이아웃 개선**
+  - `index.html`: 보조 자료 탭을 Bootstrap grid/card 구조로 개편 → S&P500 섹터 vs 내 포트폴리오 섹터 비교 가능
+  - 환율 그래프를 별도 행에 배치
+  - 메인 계좌 탭의 차트들도 카드 스타일(`.chart-card`) 적용 → UI 일관성 확보
+- **CSS (`styles.css`)**
+  - `.chart-card`, `.chart-title`, `.chart-box` 스타일 추가
+  - 반응형 지원: 화면 폭이 좁을 때 Treemap 세로 정렬
+  - 고정 높이(`height: 480px`) 적용으로 Plotly 레이아웃 안정화
+- **JavaScript (`script.js`)**
+  - 탭 전환 시 Treemap/환율 차트 크기 오류 수정 → `forceRelayout` 적용
+  - 보조자료 탭: 처음 열릴 때만 데이터 로드, 이후에는 `resize`로만 갱신
+- **백엔드 구조 정리**
+  - `db.py` 파일 제거 → DB 연결(`get_connection`) 기능을 `utils.py`로 통합
+  - `with conn.cursor(...)` 패턴 일괄 적용으로 안정성 확보
+- **README**
+  - API 엔드포인트 목록을 실제 구현 기준으로 정정
+    - `/get_treemap_data` → "S&P500 섹터별 변동률"
+    - `/get_portfolio_sector_data` → ETF look-through 기반 최신 로직 반영
+  - 프로젝트 폴더 구조를 최신 코드 기준으로 업데이트
 ##
 

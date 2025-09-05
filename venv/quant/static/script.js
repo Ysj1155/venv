@@ -1,387 +1,411 @@
 document.addEventListener("DOMContentLoaded", function () {
-    window.showTab = showTab;
-    initApp();
+  window.showTab = showTab;
+  initApp();
 });
 
-function initApp() {
-    loadPortfolioTable();
-    loadPieChart();
-    loadAccountChart();
-    loadExchangeRateChart();
-    loadTreemaps();
-    loadWatchlist();
-    setupWatchlistForm();
-    setupPrivacyToggle();
+let dataTabLoaded = false
+
+function forceRelayout(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const w = el.clientWidth || el.parentElement.clientWidth || 600;
+  const h = el.clientHeight || 440;
+  Plotly.relayout(el, { width: w, height: h });
 }
 
-function showTab(tabId) {
-    document.querySelectorAll(".tab-content").forEach(tab => tab.style.display = "none");
-    document.getElementById(tabId).style.display = "block";
-    document.querySelectorAll(".nav-link").forEach(link => link.classList.remove("active"));
-    document.getElementById(`tab-${tabId}`).classList.add("active");
+function initApp() {
+  loadPortfolioTable();
+  loadPieChart();
+  loadAccountChart();
+  loadWatchlist();
+  setupWatchlistForm();
+  setupPrivacyToggle();
 }
+
+// -------------------- UI Helpers --------------------
+function showTab(tabId) {
+  document.querySelectorAll(".tab-content").forEach(tab => (tab.style.display = "none"));
+  document.getElementById(tabId).style.display = "block";
+  document.querySelectorAll(".nav-link").forEach(link => link.classList.remove("active"));
+  document.getElementById(`tab-${tabId}`).classList.add("active");
+
+  if (tabId === "data") {
+    if (!dataTabLoaded) {
+      loadTreemaps();
+      loadExchangeRateChart();
+      dataTabLoaded = true;
+      setTimeout(() => {
+        ["sp500-treemap", "portfolio-treemap", "exchange-rate-chart"].forEach(forceRelayout);
+      }, 0);
+    } else {
+      ["sp500-treemap", "portfolio-treemap", "exchange-rate-chart"].forEach(id => {
+        Plotly.Plots.resize(document.getElementById(id));
+        forceRelayout(id);
+      });
+    }
+  }
+}
+
+window.addEventListener("resize", () => {
+  ["sp500-treemap","portfolio-treemap","exchange-rate-chart","profit-chart","pie-chart"]
+    .forEach(id => {
+      const el = document.getElementById(id);
+      if (el) Plotly.Plots.resize(el);
+    });
+});
 
 function formatMarketCap(value) {
-    if (!value) return "N/A";
-    const billion = 1_000_000_000;
-    const million = 1_000_000;
-    if (value >= billion) return (value / billion).toFixed(1) + "B";
-    if (value >= million) return (value / million).toFixed(1) + "M";
-    return value.toLocaleString();
+  if (!value) return "N/A";
+  const billion = 1_000_000_000;
+  const million = 1_000_000;
+  if (value >= billion) return (value / billion).toFixed(1) + "B";
+  if (value >= million) return (value / million).toFixed(1) + "M";
+  return Number(value).toLocaleString();
 }
 
-function interpretRSI(rsi) {
-    if (rsi > 70) return "과매수 📈";
-    if (rsi < 30) return "과매도 📉";
-    return "보통 ⚖️";
-}
-
+// 공통 fetch 래퍼
 function loadJsonAndRender(url, onSuccess, onError) {
-    fetch(url)
-        .then(res => res.json())
-        .then(data => {
-            if (data.error) {
-                console.error(`❌ Error from ${url}:`, data.error);
-                if (onError) onError(data.error);
-            } else {
-                onSuccess(data);
-            }
-        })
-        .catch(error => {
-            console.error(`❌ Fetch failed from ${url}:`, error);
-            if (onError) onError(error);
-        });
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      if (data?.error) {
+        console.error(`❌ Error from ${url}:`, data.error);
+        onError && onError(data.error);
+      } else {
+        onSuccess(data);
+      }
+    })
+    .catch(err => {
+      console.error(`❌ Fetch failed from ${url}:`, err);
+      onError && onError(err);
+    });
 }
 
+// -------------------- Data: Portfolio table --------------------
 function loadPortfolioTable() {
-    loadJsonAndRender("/get_portfolio_data", data => {
-        const tableBody = document.getElementById("portfolio-table-body");
-        tableBody.innerHTML = "";
-        data.forEach(row => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td>${row.account_number}</td>
-                <td>${row.ticker}</td>
-                <td>${row.quantity}</td>
-                <td>${row.purchase_amount.toLocaleString()} KRW</td>
-                <td>${row.evaluation_amount.toLocaleString()} KRW</td>
-                <td>${row.profit_loss.toLocaleString()} KRW</td>
-                <td style="color: ${row.profit_rate >= 0 ? 'red' : 'blue'}; font-weight: bold;">
-                ${row.profit_rate.toFixed(2)}%</td>`;
-            tableBody.appendChild(tr);
-        });
+  loadJsonAndRender("/get_portfolio_data", data => {
+    const tbody = document.getElementById("portfolio-table-body");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    data.forEach(row => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${row.account_number}</td>
+        <td>${row.ticker}</td>
+        <td>${row.quantity}</td>
+        <td>${Number(row.purchase_amount).toLocaleString()} KRW</td>
+        <td>${Number(row.evaluation_amount).toLocaleString()} KRW</td>
+        <td>${Number(row.profit_loss).toLocaleString()} KRW</td>
+        <td style="color:${row.profit_rate >= 0 ? 'red' : 'blue'}; font-weight:bold;">
+          ${Number(row.profit_rate).toFixed(2)}%
+        </td>`;
+      tbody.appendChild(tr);
     });
+  });
 }
 
+// -------------------- Charts: Pie --------------------
 function loadPieChart() {
-    loadJsonAndRender("/get_pie_chart_data", data => {
-        Plotly.newPlot("pie-chart", [{
-            labels: data.labels,
-            values: data.values,
-            type: "pie"
-        }]);
+  loadJsonAndRender("/get_pie_chart_data", data => {
+    Plotly.newPlot("pie-chart", [{
+      labels: data.labels,
+      values: data.values,
+      type: "pie"
+    }], {margin: {t: 10}}, {responsive: true});
 
-        let totalValueElement = document.getElementById("total-value");
-        if (totalValueElement) {
-            totalValueElement.innerText = `Total Value: ${data.total_value}`;
-        }
-    });
+    const totalEl = document.getElementById("total-value");
+    if (totalEl) totalEl.innerText = `Total Value: ${data.total_value}`;
+  });
 }
 
+// -------------------- Charts: Account value & profit --------------------
 function loadAccountChart() {
-    loadJsonAndRender("/get_account_value_data", data => {
-        let totalValueElement = document.getElementById("total-value");
-        let latestValue = data.latest_value.toLocaleString();
-        let latestProfit = data.latest_profit.toFixed(2);
-        let profitColor = latestProfit >= 0 ? "red" : "blue";
-        if (totalValueElement) {
-            totalValueElement.innerHTML = `
-                Total Value: ${latestValue} KRW
-                <span style="color: ${profitColor}; font-weight: bold;">
-                    (${latestProfit}%)
-                </span>
-            `;
-        }
-        let totalValueTrace = {
-            x: data.dates,
-            y: data.total_values,
-            type: "scatter",
-            mode: "lines+markers",
-            name: "Total Account Value",
-            yaxis: "y1"
-        };
+  loadJsonAndRender("/get_account_value_data", data => {
+    const latestValue = Number(data.latest_value).toLocaleString();
+    const latestProfit = Number(data.latest_profit).toFixed(2);
+    const profitColor = data.latest_profit >= 0 ? "red" : "blue";
 
-        let profitTrace = {
-            x: data.dates,
-            y: data.profits,
-            type: "scatter",
-            mode: "lines",
-            name: "Account Profit (%)",
-            yaxis: "y2",
-            line: { color: "red", dash: "dot" }
-        };
+    const headEl = document.getElementById("total-value");
+    if (headEl) {
+      headEl.innerHTML = `
+        Total Value: ${latestValue} KRW
+        <span style="color:${profitColor}; font-weight:bold;">(${latestProfit}%)</span>
+      `;
+    }
 
-        let layout = {
-            title: "Portfolio Total Value & Profit",
-            xaxis: { title: "Date" },
-            yaxis: { title: "Total Value (KRW)", side: "left", showgrid: false },
-            yaxis2: {
-                title: "Profit (%)",
-                overlaying: "y",
-                side: "right",
-                showgrid: false
-            }
-        };
+    const totalValueTrace = {
+      x: data.dates,
+      y: data.total_values,
+      type: "scatter",
+      mode: "lines+markers",
+      name: "Total Account Value",
+      yaxis: "y1"
+    };
+    const profitTrace = {
+      x: data.dates,
+      y: data.profits,
+      type: "scatter",
+      mode: "lines",
+      name: "Account Profit (%)",
+      yaxis: "y2",
+      line: { dash: "dot" }
+    };
+    const layout = {
+      title: "Portfolio Total Value & Profit",
+      xaxis: { title: "Date" },
+      yaxis: { title: "Total Value (KRW)", side: "left", showgrid: false },
+      yaxis2: { title: "Profit (%)", overlaying: "y", side: "right", showgrid: false },
+      margin: { t: 40, r: 10, l: 50, b: 40 }
+    };
 
-        Plotly.newPlot("profit-chart", [totalValueTrace, profitTrace], layout);
+    Plotly.newPlot("profit-chart", [totalValueTrace, profitTrace], layout, {responsive: true});
+  });
+}
+
+// -------------------- Charts: Exchange rate --------------------
+function loadExchangeRateChart() {
+  loadJsonAndRender("/get_exchange_rate_data", data => {
+    Plotly.newPlot("exchange-rate-chart", [{
+      x: data.dates,
+      y: data.rates,
+      type: "scatter",
+      mode: "lines",
+      name: "USD/KRW",
+      connectgaps: false
+    }], {margin: {t: 10, r: 10, l: 40, b: 40}}, {responsive: true});
+  });
+}
+
+// -------------------- Charts: Treemaps (SP500 & Portfolio) --------------------
+function loadTreemaps() {
+  loadJsonAndRender("/get_treemap_data", data => {
+    const fig = {
+      type: "treemap",
+      labels: data.sectors,
+      parents: Array(data.sectors.length).fill(""),
+      values: data.changes.map(v => Math.abs(v)),
+      textinfo: "label+value",
+      marker: { colors: data.changes, colorscale: "RdYlGn", cmin: -3, cmax: 3 }
+    };
+    Plotly.newPlot("sp500-treemap", [fig], {
+      margin: { t: 10, l: 10, r: 10, b: 10 },
+      height: 440,
+      autosize: true
+    }, { responsive: true }).then(() => forceRelayout("sp500-treemap"));
+  });
+
+  // 내 포트폴리오 섹터 분포(ETF look-through 반영)
+  loadJsonAndRender("/get_portfolio_sector_data", data => {
+    const sectors = Object.keys(data);
+    const values  = sectors.map(s => data[s].total_value);
+    const hover   = sectors.map(s => {
+      const stocks = (data[s].stocks || []).map(x => {
+        const t = x.ticker || "Unknown";
+        return `${t}: $${Number(x.price).toLocaleString()}`;
+      }).join("<br>");
+      return `${s}<br>${stocks}`;
     });
+
+    Plotly.newPlot("portfolio-treemap", [{
+      type: "treemap",
+      labels: sectors,
+      parents: Array(sectors.length).fill(""),
+      values: values,
+      text: hover,
+      hoverinfo: "text"
+    }], {
+      margin: { t: 10, l: 10, r: 10, b: 10 },
+      height: 440,
+      autosize: true
+    }, { responsive: true }).then(() => forceRelayout("portfolio-treemap"));
+  });
 }
 
 function loadExchangeRateChart() {
-    loadJsonAndRender("/get_exchange_rate_data", data => {
-        Plotly.newPlot("exchange-rate-chart", [{
-            x: data.dates,
-            y: data.rates,
-            type: "scatter",
-            mode: "lines",
-            name: "USD/KRW Exchange Rate",
-            connectgaps: false
-        }]);
-    });
+  loadJsonAndRender("/get_exchange_rate_data", data => {
+    Plotly.newPlot("exchange-rate-chart", [{
+      x: data.dates,
+      y: data.rates,
+      type: "scatter",
+      mode: "lines",
+      name: "USD/KRW",
+      connectgaps: false
+    }], {
+      margin: { t: 10, r: 10, l: 40, b: 40 },
+      height: 440,
+      autosize: true
+    }, { responsive: true }).then(() => forceRelayout("exchange-rate-chart"));
+  });
 }
-function loadTreemaps() {
-    loadJsonAndRender("/get_treemap_data", data => {
-        let fig_sp500 = {
-            type: "treemap",
-            labels: data.sectors,
-            parents: Array(data.sectors.length).fill(""),
-            values: data.changes.map(change => Math.abs(change)),
-            textinfo: "label+value",
-            marker: {
-                colors: data.changes,
-                colorscale: "RdYlGn",
-                cmin: -3, cmax: 3
-            }
-        };
-        Plotly.newPlot("sp500-treemap", [fig_sp500], {
-            title: "S&P 500 섹터별 변동률",
-            height: 600, width: 600
-        });
+
+// 반응형 리사이즈(보강)
+window.addEventListener("resize", () => {
+  ["sp500-treemap", "portfolio-treemap", "exchange-rate-chart", "profit-chart", "pie-chart"]
+    .forEach(id => {
+      const el = document.getElementById(id);
+      if (el) Plotly.Plots.resize(el);
     });
-    loadJsonAndRender("/get_portfolio_sector_data", data => {
-        let sectors = Object.keys(data);
-        let values = sectors.map(sector => data[sector].total_value);
-        let hover_texts = sectors.map(sector => {
-            let stocks = data[sector].stocks.map(s => {
-                let ticker = s.ticker ? s.ticker : "Unknown";
-                return `${ticker}: $${s.price.toLocaleString()}`;
-            }).join("<br>");
-            return `${stocks}`;
-        });
-        let treemapData = [{
-            type: "treemap",
-            labels: sectors,
-            parents: Array(sectors.length).fill(""),
-            values: values,
-            text: hover_texts,
-            hoverinfo: "text"
-        }];
-        Plotly.newPlot("portfolio-treemap", treemapData, {
-            title: "내 포트폴리오 섹터 분포"
-        });
-    });
-}
+});
+
+// -------------------- Watchlist --------------------
 function loadWatchlist() {
-    loadJsonAndRender("/get_watchlist", data => {
-        const watchlistItems = document.getElementById("watchlist-items");
-        watchlistItems.innerHTML = "";
-        data.watchlist.forEach(ticker => {
-            const li = createWatchlistItem(ticker);
-            watchlistItems.appendChild(li);
-        });
-    });
+  loadJsonAndRender("/get_watchlist", data => {
+    const ul = document.getElementById("watchlist-items");
+    if (!ul) return;
+    ul.innerHTML = "";
+    (data.watchlist || []).forEach(t => ul.appendChild(createWatchlistItem(t)));
+  });
 }
+
 function setupWatchlistForm() {
-    document.getElementById("watchlist-form").addEventListener("submit", function(event) {
-        event.preventDefault();
-        const ticker = document.getElementById("ticker").value.trim().toUpperCase();
-        if (!ticker) return;
-        fetch("/add_watchlist", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ticker: ticker })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                alert(data.error);
-            } else {
-                const listItem = createWatchlistItem(ticker);
-                document.getElementById("watchlist-items").appendChild(listItem);
-                document.getElementById("ticker").value = "";
-            }
-        });
-    });
+  const form = document.getElementById("watchlist-form");
+  if (!form) return;
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    const input = document.getElementById("ticker");
+    const ticker = (input.value || "").trim().toUpperCase();
+    if (!ticker) return;
+    fetch("/add_watchlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker })
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (res.error) return alert(res.error);
+        document.getElementById("watchlist-items").appendChild(createWatchlistItem(ticker));
+        input.value = "";
+      });
+  });
 }
+
 function createWatchlistItem(ticker) {
-    const li = document.createElement("li");
-    li.style.display = "flex";
-    li.style.justifyContent = "space-between";
-    li.style.alignItems = "center";
-    li.style.padding = "4px 8px";
-    const span = document.createElement("span");
-    span.textContent = ticker;
-    span.style.cursor = "pointer";
-    span.title = "클릭하면 분석 정보를 확인합니다";
-    span.addEventListener("click", () => {
-        const panel = document.getElementById("stock-detail-panel");
-        const content = document.getElementById("detail-content");
-        content.innerHTML = `<p>🔄 데이터 로딩중...</p>`;
-        fetch(`/get_stock_detail_finnhub?ticker=${ticker}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    content.innerHTML = `<p style=\"color:red;\">❌ ${data.error}</p>`;
-                    return;
-                }
-                const price = data.price?.c || 'N/A';
-                const marketCap = data.profile?.marketCapitalization || 'N/A';
-                const per = data.metrics?.metric?.peTTM || 'N/A';
-                const dividendYield = data.metrics?.metric?.currentDividendYieldTTM || 0;
-                content.innerHTML = `
-                    <h5>${data.profile?.name} (${ticker})</h5>
-                    <p><strong>📈 현재가:</strong> $${price}</p>
-                    <p><strong>💰 시가총액:</strong> ${formatMarketCap(marketCap)}</p>
-                    <p><strong>📊 PER:</strong> ${per}</p>
-                    <p><strong>📤 배당률:</strong> ${(dividendYield * 100).toFixed(2)}%</p>
-                `;
+  const li = document.createElement("li");
+  li.style.display = "flex";
+  li.style.justifyContent = "space-between";
+  li.style.alignItems = "center";
+  li.style.padding = "4px 8px";
 
-                const kisChartDiv = document.createElement("div");
-                kisChartDiv.id = "kis-candle-chart";
-                kisChartDiv.style.height = "500px";
-                kisChartDiv.style.marginTop = "20px";
+  const span = document.createElement("span");
+  span.textContent = ticker;
+  span.style.cursor = "pointer";
+  span.title = "클릭하면 분석 정보를 확인합니다";
+  span.addEventListener("click", () => openStockDetail(ticker));
 
-                const loadingSpan = document.createElement("span");
-                loadingSpan.id = "kis-loading-text";
-                loadingSpan.textContent = "🔄 KIS 캔들차트 로딩중...";
-                kisChartDiv.appendChild(loadingSpan);
-                content.appendChild(kisChartDiv);
+  const del = document.createElement("button");
+  del.textContent = "❌";
+  del.style.border = "none";
+  del.style.background = "none";
+  del.style.cursor = "pointer";
+  del.style.color = "red";
+  del.title = "관심 목록에서 제거";
+  del.addEventListener("click", () => {
+    if (!confirm(`${ticker} 티커를 관심 목록에서 삭제할까요?`)) return;
+    fetch("/remove_watchlist", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker })
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (res.error) return alert(res.error);
+        li.remove();
+      });
+  });
 
-                fetch(`/get_stock_chart_kis?ticker=${ticker}&exchange=NAS`)
-                    .then(res => res.json())
-                    .then(kisData => {
-                        if (kisData.error) {
-                            console.error("KIS 데이터 불러오기 실패", kisData.error);
-                            kisChartDiv.innerHTML = `<p style=\"color:red;\">KIS 데이터 불러오기 실패: ${kisData.error}</p>`;
-                            return;
-                        }
-
-                        const ohlc = kisData.ohlc;
-                        const dates = ohlc.map(x => {
-                            const d = x.date;
-                            return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;  // '2025-02-18'
-                        });
-                        const opens = ohlc.map(x => x.open);
-                        const highs = ohlc.map(x => x.high);
-                        const lows = ohlc.map(x => x.low);
-                        const closes = ohlc.map(x => x.close);
-                        const volumes = ohlc.map(x => x.volume);
-
-                        Plotly.newPlot("kis-candle-chart", [
-                            {
-                                x: dates,
-                                open: opens,
-                                high: highs,
-                                low: lows,
-                                close: closes,
-                                type: 'candlestick',
-                                name: 'Price',
-                                xaxis: 'x',
-                                yaxis: 'y'
-                            },
-                            {
-                                x: dates,
-                                y: volumes,
-                                type: 'bar',
-                                name: 'Volume',
-                                xaxis: 'x',
-                                yaxis: 'y2',
-                                marker: { color: "rgba(128,128,128,0.4)" }
-                            }
-                        ], {
-                            title: `${ticker} 캔들차트 (KIS API)`,
-                            xaxis: {
-                                title: '날짜',
-                                rangeslider: { visible: false }
-                            },
-                            yaxis: {
-                                title: '가격',
-                                domain: [0.3, 1]
-                            },
-                            yaxis2: {
-                                title: '거래량',
-                                domain: [0, 0.2],
-                                showticklabels: true
-                            },
-                            height: 500,
-                            margin: { t: 40, b: 50 },
-                            showlegend: false
-                        }).then(() => {
-                            const loadingText = document.getElementById("kis-loading-text");
-                            if (loadingText) loadingText.remove();
-                        });
-                    })
-                    .catch(err => {
-                        console.error("KIS fetch error:", err);
-                        kisChartDiv.innerHTML = `<p style=\"color:red;\">KIS 캔들차트 로드 실패</p>`;
-                    });
-            })
-            .catch(error => {
-                console.error("Finnhub fetch error:", error);
-                content.innerHTML = `<p style=\"color:red;\">❌ Finnhub 데이터 요청 실패</p>`;
-            });
-        panel.style.display = "block";
-    });
-
-    const deleteBtn = document.createElement("button");
-    deleteBtn.textContent = "❌";
-    deleteBtn.style.border = "none";
-    deleteBtn.style.background = "none";
-    deleteBtn.style.cursor = "pointer";
-    deleteBtn.style.color = "red";
-    deleteBtn.title = "관심 목록에서 제거";
-
-    deleteBtn.addEventListener("click", () => {
-        if (confirm(`${ticker} 티커를 관심 목록에서 삭제할까요?`)) {
-            fetch("/remove_watchlist", {
-                method: "DELETE",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({ticker: ticker})
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        alert(data.error);
-                    } else {
-                        li.remove();
-                    }
-                });
-        }
-    });
-    li.appendChild(span);
-    li.appendChild(deleteBtn);
-    return li;
+  li.appendChild(span);
+  li.appendChild(del);
+  return li;
 }
-// 🔒 개인정보 숨기기 버튼
-function setupPrivacyToggle() {
-    const btn = document.getElementById("toggle-privacy-btn");
-    let hidden = false;
 
-    btn.addEventListener("click", () => {
-        document.querySelectorAll(".privacy-sensitive").forEach(el => {
-            el.style.visibility = hidden ? "visible" : "hidden";
+function openStockDetail(ticker) {
+  const panel = document.getElementById("stock-detail-panel");
+  const content = document.getElementById("detail-content");
+  if (!panel || !content) return;
+
+  content.innerHTML = `<p>🔄 데이터 로딩중...</p>`;
+  fetch(`/get_stock_detail_finnhub?ticker=${ticker}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        content.innerHTML = `<p style="color:red;">❌ ${data.error}</p>`;
+        return;
+      }
+      const price = data.price?.c ?? "N/A";
+      const marketCap = data.profile?.marketCapitalization ?? "N/A";
+      const per = data.metrics?.metric?.peTTM ?? "N/A";
+      const dividendYield = (data.metrics?.metric?.currentDividendYieldTTM ?? 0) * 100;
+
+      content.innerHTML = `
+        <h5>${data.profile?.name ?? ""} (${ticker})</h5>
+        <p><strong>📈 현재가:</strong> $${price}</p>
+        <p><strong>💰 시가총액:</strong> ${formatMarketCap(marketCap)}</p>
+        <p><strong>📊 PER:</strong> ${per}</p>
+        <p><strong>📤 배당률:</strong> ${dividendYield.toFixed(2)}%</p>
+      `;
+
+      // KIS 캔들 차트
+      const chartDiv = document.createElement("div");
+      chartDiv.id = "kis-candle-chart";
+      chartDiv.style.height = "500px";
+      chartDiv.style.marginTop = "20px";
+      chartDiv.innerHTML = `<span id="kis-loading-text">🔄 KIS 캔들차트 로딩중...</span>`;
+      content.appendChild(chartDiv);
+
+      fetch(`/get_stock_chart_kis?ticker=${ticker}&exchange=NAS`)
+        .then(r => r.json())
+        .then(kis => {
+          if (kis.error) {
+            chartDiv.innerHTML = `<p style="color:red;">KIS 데이터 불러오기 실패: ${kis.error}</p>`;
+            return;
+          }
+          const ohlc = kis.ohlc || [];
+          const dates  = ohlc.map(x => `${x.date.slice(0,4)}-${x.date.slice(4,6)}-${x.date.slice(6,8)}`);
+          const opens  = ohlc.map(x => x.open);
+          const highs  = ohlc.map(x => x.high);
+          const lows   = ohlc.map(x => x.low);
+          const closes = ohlc.map(x => x.close);
+          const vols   = ohlc.map(x => x.volume);
+
+          Plotly.newPlot("kis-candle-chart", [
+            { x: dates, open: opens, high: highs, low: lows, close: closes, type: "candlestick", name: "Price", xaxis: "x", yaxis: "y" },
+            { x: dates, y: vols, type: "bar", name: "Volume", xaxis: "x", yaxis: "y2", marker: { color: "rgba(128,128,128,0.4)" } }
+          ], {
+            title: `${ticker} 캔들차트 (KIS API)`,
+            xaxis: { title: "날짜", rangeslider: { visible: false } },
+            yaxis:  { title: "가격",   domain: [0.3, 1] },
+            yaxis2: { title: "거래량", domain: [0, 0.2], showticklabels: true },
+            height: 500,
+            margin: { t: 40, b: 50 },
+            showlegend: false
+          }, {responsive: true}).then(() => {
+            const loading = document.getElementById("kis-loading-text");
+            loading && loading.remove();
+          });
+        })
+        .catch(err => {
+          console.error("KIS fetch error:", err);
+          chartDiv.innerHTML = `<p style="color:red;">KIS 캔들차트 로드 실패</p>`;
         });
-        btn.textContent = hidden ? "🔒 정보 숨기기" : "🔓 정보 보이기";
-        hidden = !hidden;
+    })
+    .catch(err => {
+      console.error("Finnhub fetch error:", err);
+      content.innerHTML = `<p style="color:red;">❌ Finnhub 데이터 요청 실패</p>`;
     });
+
+  panel.style.display = "block";
+}
+
+// -------------------- Privacy toggle --------------------
+function setupPrivacyToggle() {
+  const btn = document.getElementById("toggle-privacy-btn");
+  if (!btn) return;
+  let hidden = false;
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".privacy-sensitive").forEach(el => {
+      el.style.visibility = hidden ? "visible" : "hidden";
+    });
+    btn.textContent = hidden ? "🔒 정보 숨기기" : "🔓 정보 보이기";
+    hidden = !hidden;
+  });
 }

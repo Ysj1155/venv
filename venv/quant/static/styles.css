@@ -1,3 +1,4 @@
+/* 기본 레이아웃 */
 body {
     background-color: #f8f9fa;
     font-family: Arial, sans-serif;
@@ -20,21 +21,40 @@ body {
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-/* ✅ 제목 중앙 정렬 */
+/* 제목 */
 h1 {
     text-align: center;
     font-size: 24px;
     margin-bottom: 20px;
 }
 
-/* ✅ 원형 차트 & 평가금액 그래프 크기 조정 */
+/* 차트 공통 카드 스타일 (신규) */
+.chart-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+}
+
+.chart-title {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.chart-box {
+  width: 100%;
+  height: 480px;    /* ← 고정 높이 */
+    display: block;
+}
+
+/* 원형 차트 & 평가금액 그래프 */
 #pie-chart, #profit-chart {
     margin: 20px auto;
     width: 90%;
     height: 450px;  /* ✅ 기존 400px → 450px로 확대 */
 }
 
-/* ✅ Treemap 컨테이너 (S&P 500 vs 내 포트폴리오) */
+/* Treemap 컨테이너 (S&P 500 vs 내 포트폴리오) */
 .treemap-container {
     display: flex;
     justify-content: space-between;  /* ✅ Treemap을 좌우로 정렬 */
@@ -43,20 +63,20 @@ h1 {
     gap: 30px;  /* ✅ Treemap 간 간격 추가 */
 }
 
-/* ✅ Treemap 크기 조정 */
+/* Treemap 크기 */
 #sp500-treemap, #portfolio-treemap {
-    width: 48%;  /* ✅ 48%로 균등 배치 */
+    width: 48%;   /* ✅ 48%로 균등 배치 */
     height: 500px;  /* ✅ 기존보다 크기 확대 */
 }
 
-/* ✅ 환율 차트 크기 조정 */
+/* 환율 차트 */
 #exchange-rate-chart {
     margin: 30px auto;
     width: 90%;
     height: 450px;
 }
 
-/* ✅ 관심 목록 폼 스타일 */
+/* 관심 목록 폼 */
 form {
     margin: 20px auto;
     width: 80%;
@@ -82,7 +102,23 @@ form button {
     display: block;
     margin: 0 auto;
 }
-/* 선택적으로 부드러운 효과 추가 */
+
+/* 민감정보 토글 효과 */
 .privacy-sensitive {
     transition: visibility 0.3s ease;
+}
+
+/* 반응형: 화면이 좁아지면 트리맵을 세로로 쌓기 */
+@media (max-width: 992px) {
+  .treemap-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  #sp500-treemap, #portfolio-treemap {
+    width: 100%;
+    height: 420px;
+  }
+  .chart-box {
+    min-height: 380px;
+  }
 }
