@@ -8,6 +8,7 @@ from api.finnhub_api import (
 from api.kis_api import get_overseas_daily_price
 from utils import parse_kis_ohlc, get_connection
 from db.migration import migrate_portfolio, migrate_account_value
+from data.csv_manager import process_account_value, process_portfolio_data
 from functools import lru_cache
 import yfinance as yf
 import FinanceDataReader as fdr
@@ -17,6 +18,25 @@ import data.csv_manager
 import json, time, config
 
 app = Flask(__name__)
+bootstrap_refresh()
+AUTO_REFRESH_CSV = os.getenv("AUTO_REFRESH_CSV", "true").lower() in ("1", "true", "yes", "y")
+
+# 앱 시작 직후에 한 번 실행
+def bootstrap_refresh():
+    """1) data/*.csv 원본 → 중간산출물 생성  2) DB 마이그레이션"""
+    if not AUTO_REFRESH_CSV:
+        print("ℹ️ AUTO_REFRESH_CSV=FALSE → CSV 갱신 스킵")
+        return
+
+    print("🔄 CSV 재생성 시작")
+    process_account_value()
+    process_portfolio_data()
+    print("✅ CSV 재생성 완료")
+
+    print("🔄 DB 마이그레이션 시작")
+    migrate_portfolio()
+    migrate_account_value()
+    print("✅ DB 마이그레이션 완료")
 
 # 앱 실행 전 자동 마이그레이션
 try:

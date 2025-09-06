@@ -68,32 +68,35 @@
     <div id="data" class="tab-content mt-3" role="tabpanel" style="display: none;">
       <h3>📈 보조 자료</h3>
 
-      <!-- 1행: SP500 섹터 / 내 포트폴리오 섹터 -->
-      <div class="row g-4">
-        <div class="col-lg-6">
-          <div class="chart-card">
-            <h5 class="chart-title">S&P 500 섹터별 변동률</h5>
-            <div id="sp500-treemap" class="chart-box"></div>
-          </div>
-        </div>
-        <div class="col-lg-6">
-          <div class="chart-card">
-            <h5 class="chart-title">내 포트폴리오 섹터 분포</h5>
-            <div id="portfolio-treemap" class="chart-box"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 2행: 환율 그래프 -->
-      <div class="row g-4 mt-1">
-        <div class="col-12">
-          <div class="chart-card">
-            <h5 class="chart-title">USD/KRW 환율 추이</h5>
-            <div id="exchange-rate-chart" class="chart-box"></div>
-          </div>
-        </div>
+  <!-- 1행: SP500 섹터 / 내 포트폴리오 섹터 -->
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="chart-card">
+        <h5 class="chart-title">S&P 500 섹터별 변동률</h5>
+        <!-- ⬇️ 정사각형 강제 -->
+        <div id="sp500-treemap" class="chart-box square-plot"></div>
       </div>
     </div>
+    <div class="col-lg-6">
+      <div class="chart-card">
+        <h5 class="chart-title">내 포트폴리오 섹터 분포</h5>
+        <!-- ⬇️ 정사각형 강제 -->
+        <div id="portfolio-treemap" class="chart-box square-plot"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2행: 환율 그래프 -->
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <div class="chart-card mt-3">
+        <h5 class="chart-title">USD/KRW 환율 추이</h5>
+        <div id="exchange-rate-chart" class="chart-box" ></div>
+      </div>
+    </div>
+  </div>
+
+
 
     <!-- ✅ 관심 목록 (Watchlist) -->
     <div id="watchlist" class="tab-content mt-3" role="tabpanel" style="display: none;">

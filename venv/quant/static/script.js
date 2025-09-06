@@ -8,10 +8,35 @@ let dataTabLoaded = false
 function forceRelayout(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  const w = el.clientWidth || el.parentElement.clientWidth || 600;
-  const h = el.clientHeight || 440;
-  Plotly.relayout(el, { width: w, height: h });
+
+  // 카드 내부 '콘텐츠 폭' 계산 (padding 제외)
+  const parent = el.closest(".chart-card") || el.parentElement || el;
+  const cs = getComputedStyle(parent);
+  const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  const contentW = Math.max(320, Math.floor(parent.clientWidth - padX));
+
+  // 비율 결정: square-plot → 1:1, data-aspect → 사용자 지정, 기본 0.56(≈16:9)
+  const isSquare = el.classList.contains("square-plot");
+  const aspectAttr = el.dataset.aspect ? parseFloat(el.dataset.aspect) : null;
+  const aspect = isSquare ? 1 : (aspectAttr || 0.56);
+
+  const h = Math.max(240, Math.round(contentW * aspect));
+
+  // ✅ 차트별 margin 커스터마이즈 (특히 x축 라벨 확보)
+  const mTop = parseInt(el.dataset.marginT || 10);
+  const mRight = parseInt(el.dataset.marginR || 10);
+  const mLeft = parseInt(el.dataset.marginL || 40);
+  const mBottom = parseInt(el.dataset.marginB || 60);
+
+  Plotly.relayout(el, {
+    width: contentW,
+    height: h,
+    margin: { t: mTop, r: mRight, l: mLeft, b: mBottom },
+    xaxis: { automargin: true },   // 라벨 길면 자동 여백 확보
+    yaxis: { automargin: true }
+  });
 }
+
 
 function initApp() {
   loadPortfolioTable();
@@ -159,20 +184,6 @@ function loadAccountChart() {
     };
 
     Plotly.newPlot("profit-chart", [totalValueTrace, profitTrace], layout, {responsive: true});
-  });
-}
-
-// -------------------- Charts: Exchange rate --------------------
-function loadExchangeRateChart() {
-  loadJsonAndRender("/get_exchange_rate_data", data => {
-    Plotly.newPlot("exchange-rate-chart", [{
-      x: data.dates,
-      y: data.rates,
-      type: "scatter",
-      mode: "lines",
-      name: "USD/KRW",
-      connectgaps: false
-    }], {margin: {t: 10, r: 10, l: 40, b: 40}}, {responsive: true});
   });
 }
 
