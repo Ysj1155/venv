@@ -145,5 +145,16 @@ quant/
     - `/get_treemap_data` → "S&P500 섹터별 변동률"
     - `/get_portfolio_sector_data` → ETF look-through 기반 최신 로직 반영
   - 프로젝트 폴더 구조를 최신 코드 기준으로 업데이트
+### ✅ [2025-09-05] 프론트/백엔드 통합 개선 및 섹터 분석 업그레이드
+- **프론트엔드 레이아웃 개선**
+  - 환율 그래프를 별도 행에 배치하여 레이아웃 안정화
+- **CSS (`styles.css`)**
+  - 카드 디자인 개선
+  - `min-height` 지정으로 Plotly 그래프가 카드 밖으로 삐져나오는 문제 해결
+- **JavaScript (`script.js`)**
+  - `marginB` 값 늘려서 x축 라벨 잘림 현상 해결
+- **백엔드 구조 정리**
+  - `csv_manager.py` 자동 호출 + `migration.py` 연동으로 앱 실행 시 최신 CSV 반영 후 DB 마이그레이션 동작
+  - `with conn.cursor(...)` 패턴 일괄 적용으로 안정성 확보:contentReference[oaicite:3]{index=3}
 ##
 
