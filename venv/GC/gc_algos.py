@@ -25,9 +25,31 @@ def cb_policy(blocks):
             best_idx = i
     return best_idx
 
+def bsgc_policy(blocks, alpha=0.7, beta=0.3):
+    """
+    점수 = alpha * invalid_ratio + beta * (1 - erase_norm)
+    - invalid_ratio: 무효/사용
+    - erase_norm: (해당 블록 erase_count) / (최대 erase_count)
+    """
+    max_erase = max((b.erase_count for b in blocks), default=0)
+    best_idx, best_score = None, float("-inf")
+    for i, b in enumerate(blocks):
+        used = b.valid_count + b.invalid_count
+        if used == 0:
+            continue
+        invalid_ratio = b.invalid_count / used
+        erase_norm = (b.erase_count / max_erase) if max_erase > 0 else 0.0
+        score = alpha * invalid_ratio + beta * (1.0 - erase_norm)
+        if score > best_score:
+            best_score = score
+            best_idx = i
+    return best_idx
+
 def get_gc_policy(name: str):
     if name == "greedy":
         return greedy_policy
     if name == "cb":
         return cb_policy
+    if name == "bsgc":
+        return bsgc_policy
     raise ValueError(name)

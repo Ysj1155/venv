@@ -35,7 +35,7 @@ SSD는 NAND 플래시 메모리를 기반으로 하며, 덮어쓰기 불가(eras
      ```
 
 3. **실험 결과**  
-=== Simulation Result ===
+=== Simulation Result ===  
 Host writes (pages):   5,000  
 Device writes (pages): 5,639  
 WAF (device/host):     1.128  
@@ -64,3 +64,47 @@ Free pages remaining:  13849 / 16384
 - 박상혁, *Analysis of the K2 Scheduler for a Real-Time System with a SSD*, 성균관대, 2021:contentReference[oaicite:9]{index=9}
 
 ---
+
+## 🗓 Changelog — 2025-09-21
+
+### 1) 성능/안정성 개선
+- **Reverse Map 도입**: `(block, page) → LPN` 역매핑 추가로 GC 마이그레이션 탐색을 O(유효페이지)로 단축.
+- **Active Block(로그 구조 쓰기)** 적용: 활성 블록에 연속 기록 → 조각화 완화, WAF/GC 감소 기대.
+
+### 2) GC 폭주 방지
+- **Simulator 정책 수정**: “호스트 1회 쓰기 전에 GC 최대 1회”로 제한하여 연쇄 GC 발생 억제.
+
+### 3) 측정 지표 확장
+- **GC 시간 계측**: `gc_total_time`, `gc_durations` 수집.
+- 콘솔 요약에 **GC total/avg/p50/p95/p99(ms)** 출력 추가.
+- CSV(`--out_csv`)에도 `gc_time_total_ms, gc_time_avg_ms, gc_time_p50_ms, gc_time_p95_ms, gc_time_p99_ms` 컬럼 기록.
+
+### 4) 결과 시각화 유틸
+- **`analyze_results.py` 추가**: `results.csv`로부터 WAF / GC_count / GC p99 그래프 생성(`plots/` 저장).
+
+### 5) GC 정책 확장(옵션)
+- **BSGC**(균형형) 간단 구현 추가: 무효비와 마모 균형을 함께 고려.  
+  → `--gc_policy bsgc` 로 실행 가능.
+
+### 6) 버그 픽스
+- `models.py` 내 **`PageState` 누락으로 인한 NameError** 해결(파일 전면 교체).
+- `metrics.py`의 **`summarize_metrics` 미정의 ImportError** 해결 및 CSV 함수 보강.
+
+---
+
+### 🔧 변경 파일
+- `models.py` : Reverse Map, Active Block, GC 시간 계측 추가
+- `simulator.py` : 1-step 당 GC 최대 1회 로직
+- `metrics.py` : GC 시간(총/평균/퍼센타일) 출력 및 CSV 기록
+- `gc_algos.py` : `bsgc_policy` 및 `get_gc_policy()` 연동
+- `analyze_results.py` : 결과 시각화 스크립트 (신규)
+
+### ▶️ 실행 예시
+```bash
+# 실험 수행 + CSV 저장
+python run_sim.py --gc_policy greedy --ops 5000 --update_ratio 0.8 --hot_ratio 0.2 --hot_weight 0.85 --out_csv results.csv --note "greedy_rl1"
+python run_sim.py --gc_policy cb     --ops 5000 --update_ratio 0.8 --hot_ratio 0.2 --hot_weight 0.85 --out_csv results.csv --note "cb_rl1"
+python run_sim.py --gc_policy bsgc   --ops 5000 --update_ratio 0.8 --hot_ratio 0.2 --hot_weight 0.85 --out_csv results.csv --note "bsgc_rl1"
+
+# 그래프 생성
+python analyze_results.py   # plots/waf_by_run.png, gc_by_run.png, gc_p99_by_run.png
