@@ -18,7 +18,26 @@ SSD는 NAND 플래시 메모리를 기반으로 하며, 덮어쓰기 불가(eras
   - 데이터센터·실시간 시스템에서는 tail latency와 안정적인 성능 보장이 필요.
   - GC 정책 차이가 RocksDB 등 DBMS와 스토리지 계층의 성능에 직접적인 영향을 미침.
 
-따라서 본 프로젝트는 **알고리즘별 GC 효과를 직접 구현·시뮬레이션·분석**하는 것을 통해 학술적/실무적 통찰을 제공하려 합니다.
+## 연구 목표
+
+본 프로젝트의 최종 목표는 단순 비교를 넘어 **보다 효율적인 GC/배치 정책을 설계·구현**하고, 다양한 워크로드에서 **정량적 근거**로 그 유효성을 입증하는 것입니다.
+
+### 연구 질문 (RQs)
+- **RQ1.** Hot/Cold 편중, 업데이트 비율, OP(Over-Provisioning) 수준이 WAF/GC 빈도/마모 균형에 미치는 영향은?
+- **RQ2.** 기존 정책(Greedy/CB/BSGC)의 강·약점은 무엇이며, 어떤 조건에서 성능/내구성/지연 측면의 역전이 발생하는가?
+- **RQ3.** *온도(Hotness)·무효비·마모*를 함께 고려하는 **경량 점수식**(예: temperature-aware cost-benefit)이 기존 대비 성능/내구성을 개선하는가?
+- **RQ4.** “한 번의 호스트 쓰기 전에 GC 최대 1회” 같은 **스케줄링 제약**이 tail latency 및 WAF에 주는 영향은?
+- **RQ5.** TRIM/OP/로그 구조 쓰기(dual active logs)의 조합이 **쓰기 증폭과 wear-leveling**을 어떻게 바꾸는가?
+
+### 접근 방식
+- **시뮬레이터 기반**: 페이지/블록/채널 단위 모델, Reverse Map, Active Block, GC 시간 계측 포함
+- **정책 비교**: Greedy / CB / BSGC / Temperature-aware CB(+ wear, age)
+- **지표**: WAF, GC count, wear Δ, GC time(avg/p50/p95/p99), free-pages 타임라인 안정성
+- **워크로드**: 업데이트 비율·Hot/Cold 편중·OP·TRIM을 조합한 스윕
+
+### 기대 산출물
+- 재현 가능한 **실험 스크립트 & CSV/플롯**, 
+- **개선 알고리즘(점수식/의사코드/실험결과)**,
 
 ---
 
@@ -65,7 +84,7 @@ Free pages remaining:  13849 / 16384
 
 ---
 
-## 🗓 Changelog — 2025-09-21
+## Changelog — 2025-09-21
 
 ### 1) 성능/안정성 개선
 - **Reverse Map 도입**: `(block, page) → LPN` 역매핑 추가로 GC 마이그레이션 탐색을 O(유효페이지)로 단축.
@@ -98,6 +117,34 @@ Free pages remaining:  13849 / 16384
 - `metrics.py` : GC 시간(총/평균/퍼센타일) 출력 및 CSV 기록
 - `gc_algos.py` : `bsgc_policy` 및 `get_gc_policy()` 연동
 - `analyze_results.py` : 결과 시각화 스크립트 (신규)
+
+## Changelog — 2025-10-04
+- run_sim.py
+    - 경로 처리 리팩토링: --out_dir/--out_csv/--trace_csv 안전 초기화
+    - ATCB 정책 주입 시점 fix(실행 전 주입)
+    - 워밍업(prefill) 옵션 추가: --warmup_fill/--warmup_seed
+    - TRIM 이벤트 옵션 추가: --trim_ratio
+    - 백그라운드 GC 옵션 추가: --bg_gc_every
+    - per-GC 이벤트 로그 저장: --gc_events_csv
+    - (선택) --check로 실행 후 불변성 검사
+- simulator.py
+    - BG GC(토큰버킷형) 지원, 스텝 트레이스 로깅 정리
+- models.py
+    - collect_garbage() 내 이벤트 레코드 남김(gc_event_log)
+- metrics.py
+    - 모듈 전역 참조 제거(안정화), 22열 스키마 호환 유지
+    - save_trace_csv()/save_gc_events_csv() 제공
+- workload.py
+    - TRIM 지원, 페이즈드 워크로드 유틸 추가(make_phased_workload)
+- sweep.py
+    - results/YYYY-MM-DD/runNN[_tag]/ 자동 생성 + LATEST.txt 갱신
+    - OP 축(user_capacity_ratio) 및 ATCB 가중치 ablation 포함
+    - sweep_meta.json (+ 옵션) requirements.txt 기록
+- analyze_results.py
+    - 단일/병합/최신 모드 지원, 레이블 회전/여백 보정
+    - 신규/구 스키마 후방호환(없는 컬럼은 자동 건너뜀)
+- 용량 여유가 크고 OPS가 작으면 GC가 0 → WAF=1.0이 나올 수 있음
+→ 필요 시 OPS↑, --blocks↓, --warmup_fill로 steady-state 비교 권장.
 
 ### ▶️ 실행 예시
 ```bash

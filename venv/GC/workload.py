@@ -41,3 +41,23 @@ def make_workload(
                 lpn = 0
         ops.append(lpn)
     return ops
+
+def make_phased_workload(phases, ssd_total_pages:int, base_seed:int=42):
+    """
+    phases: 리스트[ {n_ops, update_ratio, hot_ratio, hot_weight, trim_ratio, seed(옵션)} ... ]
+    반환: make_workload 형태의 ("write"/"trim", lpn) 리스트를 순서대로 이어붙임
+    """
+    ops = []
+    for i, p in enumerate(phases):
+        seed = p.get("seed", base_seed + i)
+        chunk = make_workload(
+            n_ops=p["n_ops"],
+            update_ratio=p.get("update_ratio", 0.8),
+            ssd_total_pages=ssd_total_pages,
+            rng_seed=seed,
+            hot_ratio=p.get("hot_ratio", 0.2),
+            hot_weight=p.get("hot_weight", 0.85),
+            trim_ratio=p.get("trim_ratio", 0.0),
+        )
+        ops.extend(chunk)
+    return ops

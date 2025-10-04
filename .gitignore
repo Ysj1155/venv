@@ -1,1 +1,28 @@
-/venv/quant/.env
+@'
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.build/
+dist/
+
+# Virtual env
+venv/
+.venv/
+ENV/
+env/
+
+# IDE/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Outputs
+results.csv
+plots/
+*.png
+'@ | Out-File -Encoding UTF8 .gitignore
+
+# results artifacts
+results/
