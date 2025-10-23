@@ -45,7 +45,12 @@ def main():
 
     # policy
     ap.add_argument("--gc_policy", type=str, default="greedy",
-                    choices=["greedy", "cb", "bsgc", "atcb"])
+                    choices=["greedy", "cb", "bsgc", "cat", "atcb", "re50315"])
+    ap.add_argument("--re50315_K", type=float, default=100.0)
+    ap.add_argument("--gc_three_stream", action="store_true")
+    ap.add_argument("--hotness_mode", type=str, default="recency",
+                    choices=["oracle", "recency"])
+    ap.add_argument("--recency_tau", type=int, default=200)
     ap.add_argument("--atcb_alpha", type=float, default=0.5)
     ap.add_argument("--atcb_beta",  type=float, default=0.3)
     ap.add_argument("--atcb_gamma", type=float, default=0.1)
@@ -80,6 +85,29 @@ def main():
     base_policy = get_gc_policy(args.gc_policy if args.gc_policy != "atcb" else "greedy")
     sim = Simulator(cfg, gc_policy=base_policy, enable_trace=bool(trace_csv_path), bg_gc_every=args.bg_gc_every)
     sim.ssd.ewma_lambda = args.ewma_lambda
+    # three-stream & hotness
+    sim.ssd.three_stream = bool(args.gc_three_stream)
+    sim.ssd.hotness_mode = args.hotness_mode
+    sim.ssd.recency_tau = int(args.recency_tau)
+    # oracle 모드일 때 hot 경계 힌트(워크로드 hot_ratio 활용)
+    if sim.ssd.three_stream and args.hotness_mode == "oracle":
+        sim.ssd.oracle_hot_cut = int(sim.cfg.user_total_pages * args.hot_ratio)
+
+    # policy injection
+    if args.gc_policy == "atcb":
+        def atcb_with_now(blocks, _sim=sim):
+            return atcb_policy(blocks,
+                               alpha=args.atcb_alpha, beta=args.atcb_beta,
+                               gamma=args.atcb_gamma, eta=args.atcb_eta,
+                               now_step=_sim.ssd._step)
+
+        sim.gc_policy = atcb_with_now
+    elif args.gc_policy == "re50315":
+        from gc_algos import re50315_policy
+        def p_with_now(blocks, _sim=sim):
+            return re50315_policy(blocks, K=args.re50315_K, now_step=_sim.ssd._step)
+
+        sim.gc_policy = p_with_now
 
     # 실행 후 저장:
     if getattr(args, "gc_events_csv", None):

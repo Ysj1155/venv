@@ -1,7 +1,7 @@
 import os
 import csv
 import math
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from math import isfinite
 
 # -----------------------------
@@ -18,29 +18,27 @@ def _percentile(xs: List[float], q: float) -> float:
         return xs[f]
     return xs[f] * (c - k) + xs[c] * (k - f)
 
-def _wear_stats(blocks) -> Tuple[float, float, float]:
-    """return (std, cv, gini) for erase_count distribution."""
-    erases = [b.erase_count for b in blocks] if blocks else []
-    if not erases:
-        return 0.0, 0.0, 0.0
-
-    mean_e = sum(erases) / len(erases)
-    var_e = sum((x - mean_e) ** 2 for x in erases) / len(erases)
-    std_e = var_e ** 0.5
-    cv_e = (std_e / mean_e) if mean_e > 0 else 0.0
-
-    xs = sorted(erases)
-    n = len(xs)
-    tot = sum(xs)
-    if tot <= 0:
-        gini = 0.0
-    else:
-        cum = 0
-        for i, x in enumerate(xs, 1):
-            cum += i * x
-        gini = (2 * cum) / (n * tot) - (n + 1) / n
-
-    return std_e, cv_e, gini
+def wear_stats(ssd) -> Dict[str, float]:
+    ecs = [b.erase_count for b in ssd.blocks]
+    n = len(ecs)
+    if n == 0:
+        return {"wear_mean":0,"wear_std":0,"wear_p95":0,"wear_max":0,"wear_gini":0}
+    mean = sum(ecs)/n
+    var = sum((x-mean)**2 for x in ecs)/n
+    std = var**0.5
+    ecs_sorted = sorted(ecs)
+    p95 = ecs_sorted[int(0.95*(n-1))]
+    mx  = ecs_sorted[-1]
+    # Gini
+    cum = 0
+    for i,x in enumerate(ecs_sorted, start=1):
+        cum += i * x
+    gini = (2*cum)/(n*sum(ecs)) - (n+1)/n if sum(ecs)>0 else 0.0
+    return {
+        "wear_mean": mean, "wear_std": std,
+        "wear_p95": float(p95), "wear_max": float(mx),
+        "wear_gini": float(gini)
+    }
 
 # -----------------------------
 # Public API
@@ -161,3 +159,17 @@ def save_gc_events_csv(path: str, sim) -> None:
         w = csv.writer(f); w.writerow(cols)
         for e in sim.ssd.gc_event_log:
             w.writerow([e.get(c, "") for c in cols])
+
+def summarize_gc_events(gc_events):
+    n = len(gc_events)
+    if n == 0:
+        return {"zgc_ratio": 0.0, "mv_p50": 0, "mv_p95": 0, "mv_p99": 0}
+    mv = sorted(ev.get("moved_valid", 0) for ev in gc_events)
+    zgc = sum(1 for x in mv if x == 0)
+    import numpy as np
+    return {
+        "zgc_ratio": zgc / n,
+        "mv_p50": float(np.percentile(mv, 50)),
+        "mv_p95": float(np.percentile(mv, 95)),
+        "mv_p99": float(np.percentile(mv, 99)),
+    }
