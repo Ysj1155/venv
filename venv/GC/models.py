@@ -105,39 +105,34 @@ class SSD:
 
     def collect_garbage(self, policy: callable, cause: str = "manual") -> None:
         """
-        - policy(blocks) -> victim_idx 를 준다고 가정.
-        - victim의 VALID 페이지를 새 블록으로 마이그레이션 후 erase.
-        - 3-stream 모드면 victim의 stream을 보존(또는 _is_hot_lpn 기반 재분류로 변경 가능).
-        - 이벤트/시간/카운터를 갱신.
+        - policy(blocks) -> victim_idx
+        - victim VALID 페이지 마이그레이션 후 erase
+        - 3-stream이면 stream 보존(또는 필요시 재분류)
+        - 이벤트/시간/카운터 갱신
         """
-        probe_snapshot = None
-        if self.score_probe is not None:
-            try:
-                probe_snapshot = self.score_probe(self.blocks)  # {idx: {...}}
-            except Exception:
-                probe_snapshot = None
-
-        # victim_idx = policy(self.blocks) 다음, 이벤트 로그 할 때:
-        event = {
-            "step": self._step, "cause": cause, "victim": victim_idx,
-            "moved_valid": moved_valid, "freed_pages": freed_before,
-            "gc_s": dt, "free_blocks_after": self.free_blocks,
-        }
-        if probe_snapshot is not None and victim_idx in probe_snapshot:
-            event["score_detail"] = probe_snapshot[victim_idx]
-        self.gc_event_log.append(event)
-
         # victim 선택
         victim_idx = policy(self.blocks)
         if victim_idx is None:
             return
         victim = self.blocks[victim_idx]
 
+        # (옵션) 스코어/피처 스냅샷
+        probe_detail = None
+        if self.score_probe is not None:
+            try:
+                snap = self.score_probe(self.blocks)  # {idx: {...}}
+                probe_detail = snap.get(victim_idx) if isinstance(snap, dict) else None
+            except Exception:
+                probe_detail = None
+
+        # victim 상태 스냅샷
+        v_valid = victim.valid_count
+        v_invalid = victim.invalid_count
+        v_ewma = victim.inv_ewma
+        v_erase = victim.erase_count
+
         t0 = time.perf_counter()
         moved_valid = 0
-
-        valid_before = victim.valid_count
-        invalid_before = victim.invalid_count
 
         # VALID 페이지 마이그레이션
         for p_idx, st in enumerate(victim.pages):
@@ -147,7 +142,7 @@ class SSD:
             if lpn is None:
                 continue
 
-            # ✅ 4-B 핵심: 목적지 블록 선택 (stream-aware)
+            # 목적지 블록
             dst_idx = self._alloc_block_for_migration(victim_idx, lpn)
             if dst_idx is None:
                 raise RuntimeError("No destination block for migration")
@@ -169,39 +164,48 @@ class SSD:
                 if dst_p is None:
                     raise RuntimeError("Allocator inconsistency during GC (second)")
 
+            # 타깃 블록 프로그램 타임스탬프
             self.blocks[dst_idx].last_prog_step = self._step
 
-            # 원본 무효화(맵에서 지우고 카운트 갱신)
+            # 원본 invalidate & 맵 갱신
             victim.invalidate_page(p_idx, step=self._step, lam=self.ewma_lambda)
             self.reverse_map.pop((victim_idx, p_idx), None)
 
-            # 새 위치 매핑 및 디바이스 쓰기 카운트
+            # 새 위치 매핑
             self.mapping[lpn] = (dst_idx, dst_p)
             self.reverse_map[(dst_idx, dst_p)] = lpn
             self.device_write_pages += 1
             moved_valid += 1
 
-        # victim erase
-        freed_before = victim.free_count
-        freed_gain = self.pages_per_block - freed_before
+        # erase 및 시간/카운터
+        free_before = victim.free_count
+        # 'freed_pages'는 회수량으로 기록 (erase로 다시 FREE가 된 수)
+        freed_pages = self.pages_per_block - free_before
+
         victim.erase()
         self.gc_count += 1
         dt = time.perf_counter() - t0
         self.gc_total_time += dt
         self.gc_durations.append(dt)
 
-        # 이벤트 로그(분석용)
-        self.gc_event_log.append({
+        # 이벤트 로그 (한 번만)
+        ev = {
             "step": self._step,
             "cause": cause,
             "victim": victim_idx,
             "moved_valid": moved_valid,
-            "freed_pages": freed_gain,
-            "valid_before": valid_before,
-            "invalid_before": invalid_before,
+            "freed_pages": freed_pages,
             "gc_s": dt,
             "free_blocks_after": self.free_blocks,
-        })
+            # victim snapshot
+            "v_valid": v_valid,
+            "v_invalid": v_invalid,
+            "v_inv_ewma": v_ewma,
+            "v_erase": v_erase,
+        }
+        if probe_detail is not None:
+            ev["score_detail"] = probe_detail
+        self.gc_event_log.append(ev)
 
     # --- derived ---
     @property
