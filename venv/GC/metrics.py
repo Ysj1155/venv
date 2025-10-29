@@ -1,184 +1,190 @@
-import os, csv, math
-import statistics as stats
-from typing import List, Dict
-import numpy as np
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
+import csv
+import math
+import os
 
-# ---------- helpers ----------
-def _percentile(xs: List[float], q: float) -> float:
-    if not xs: return 0.0
-    xs = sorted(xs)
-    k = (len(xs) - 1) * q
-    f = int(k); c = min(f + 1, len(xs) - 1)
-    if f == c: return xs[f]
-    return xs[f] * (c - k) + xs[c] * (k - f)
+# ------------------------------------------------------------
+# 내부 유틸
+# ------------------------------------------------------------
 
-def wear_moments(blocks) -> Dict[str, float]:
-    """std, cv, gini for erase_count."""
-    erases = [b.erase_count for b in blocks]
-    if not erases:
-        return {"wear_std": 0.0, "wear_cv": 0.0, "wear_gini": 0.0}
-    m = sum(erases) / len(erases)
-    var = sum((x - m) ** 2 for x in erases) / len(erases)
-    std = var ** 0.5
-    cv = (std / m) if m > 0 else 0.0
-    xs = sorted(erases); n = len(xs); tot = sum(xs)
-    if tot == 0:
-        g = 0.0
-    else:
-        cum = 0
-        for i, x in enumerate(xs, 1):
-            cum += i * x
-        g = (2 * cum) / (n * tot) - (n + 1) / n
-    return {"wear_std": std, "wear_cv": cv, "wear_gini": g}
+def _get(obj: Any, names: List[str], default: Any = None) -> Any:
+    """여러 후보 속성명 중 존재하는 첫 값을 반환 (중첩 'a.b' 경로 지원)."""
+    for name in names:
+        cur = obj
+        ok = True
+        for part in name.split("."):
+            if cur is None or not hasattr(cur, part):
+                ok = False
+                break
+            cur = getattr(cur, part)
+        if ok:
+            return cur
+    return default
 
-def wear_stats(ssd) -> Dict[str, float]:
-    """mean, stdev, p50, p95, max (+gini)."""
-    ec = [b.erase_count for b in ssd.blocks]
-    if not ec:
-        return {"wear_mean": 0.0, "wear_stdev": 0.0, "wear_p50": 0.0, "wear_p95": 0.0, "wear_max": 0, "wear_gini": 0.0}
-    xs = sorted(ec)
+
+def _list_stat(xs: List[float]) -> Dict[str, float]:
+    if not xs:
+        return {"min": 0.0, "max": 0.0, "avg": 0.0, "std": 0.0}
     n = len(xs)
-    def pct(p):
-        k = (p/100.0)*(n-1)
-        f = math.floor(k); c = math.ceil(k)
-        if f == c: return float(xs[int(k)])
-        return xs[f] + (k-f)*(xs[c]-xs[f])
-    gini = wear_moments(ssd.blocks)["wear_gini"]
+    mn = min(xs)
+    mx = max(xs)
+    avg = sum(xs) / n
+    var = sum((x - avg) ** 2 for x in xs) / n
+    return {"min": mn, "max": mx, "avg": avg, "std": math.sqrt(var)}
+
+
+# ------------------------------------------------------------
+# 스냅샷(선택적: autotune 등에 사용 가능)
+# ------------------------------------------------------------
+@dataclass
+class StabilitySnapshot:
+    transition_rate: float = 0.0  # hot↔cold 전이율(근사)
+    reheat_rate: float = 0.0      # cold→hot 재가열율(근사)
+
+
+def make_stability_snapshot(sim: Any, hot_thr: float = 0.33, cold_thr: float = 0.05) -> StabilitySnapshot:
+    """블록의 inv_ewma 분포로부터 전이/재가열 신호를 근사(단일 스냅샷 기반, 보수적).
+    - 실제 전이율은 시계열 필요. 여기서는 분포 퍼짐/꼬리 비중으로 근사 신호만 만든다.
+    - CatPolicy.autotune()과 함께 쓸 때 보수적으로 반응하도록 작은 값으로 클램프.
+    """
+    ssd = getattr(sim, "ssd", sim)
+    blocks = getattr(ssd, "blocks", []) or []
+    if not blocks:
+        return StabilitySnapshot()
+    h = sum(1 for b in blocks if float(getattr(b, "inv_ewma", 0.0)) >= hot_thr)
+    c = sum(1 for b in blocks if float(getattr(b, "inv_ewma", 0.0)) <= cold_thr)
+    n = max(1, len(blocks))
+    # 분포가 양극화(핫/콜드 꼬리의 합이 크다) → 전이/재가열 가능성 ↑ 로 해석
+    pol = (h + c) / n
+    # 보수적 스케일링(너무 크게 튀지 않도록 0.0~0.3 범위)
+    return StabilitySnapshot(transition_rate=min(0.3, pol * 0.2), reheat_rate=min(0.3, h / n * 0.1))
+
+
+# ------------------------------------------------------------
+# 메트릭 수집
+# ------------------------------------------------------------
+
+def collect_run_metrics(sim: Any) -> Dict[str, Any]:
+    """시뮬레이터 구현 차이를 흡수하는 견고한 메트릭 추출기.
+    - sim 또는 sim.ssd 아래에 있는 공통 필드들을 탐색해 집계
+    - 누락 시 0/None 기본값으로 안전 처리
+    """
+    ssd = getattr(sim, "ssd", sim)
+
+    host_w = int(_get(ssd, ["host_write_pages", "host_writes", "host_pages"], 0))
+    dev_w  = int(_get(ssd, ["device_write_pages", "device_writes", "dev_pages"], 0))
+    waf = (dev_w / host_w) if host_w > 0 else 0.0
+
+    gc_cnt = int(_get(ssd, ["gc_count"], 0))
+    gc_durs = list(_get(ssd, ["gc_durations"], []) or [])
+    gc_avg = (sum(gc_durs) / len(gc_durs)) if gc_durs else 0.0
+
+    free_pages  = int(_get(ssd, ["free_pages"], 0))
+    free_blocks = int(_get(ssd, ["free_blocks"], 0))
+
+    blocks = list(getattr(ssd, "blocks", []) or [])
+    pages_per_block = int(_get(ssd, ["pages_per_block", "ppb"], 0)) or int(
+        _get(sim, ["pages_per_block", "ppb"], 0)
+    )
+
+    # wear 통계
+    wear_list = [int(getattr(b, "erase_count", 0)) for b in blocks]
+    wear_stat = _list_stat([float(x) for x in wear_list])
+
+    # trim, invalid, valid 집계(있으면)
+    total_trimmed = sum(int(getattr(b, "trimmed_pages", 0)) for b in blocks)
+    total_invalid = sum(int(getattr(b, "invalid_count", 0)) for b in blocks)
+    total_valid   = sum(int(getattr(b, "valid_count", 0)) for b in blocks)
+
+    # 정책명 추출(람다면 'lambda'로 표시)
+    policy_name = None
+    pol = getattr(sim, "gc_policy", None)
+    if pol is not None:
+        policy_name = getattr(pol, "__name__", str(pol))
+
+    # 장치 크기 추정(가능할 때)
+    total_pages = None
+    nb = int(_get(ssd, ["num_blocks", "blocks", "total_blocks"], 0))
+    if isinstance(getattr(ssd, "num_blocks", None), int):
+        nb = getattr(ssd, "num_blocks")
+    if nb and pages_per_block:
+        total_pages = nb * pages_per_block
+
+    # 스냅샷(선택)
+    snap = make_stability_snapshot(sim)
+
     return {
-        "wear_mean": float(stats.mean(xs)),
-        "wear_stdev": float(stats.pstdev(xs)),
-        "wear_p50": pct(50),
-        "wear_p95": pct(95),
-        "wear_max": int(xs[-1]),
-        "wear_gini": float(gini),
+        "policy": policy_name,
+        "host_writes": host_w,
+        "device_writes": dev_w,
+        "waf": round(waf, 6),
+        "gc_count": gc_cnt,
+        "gc_avg_s": round(gc_avg, 6),
+        "free_pages": free_pages,
+        "free_blocks": free_blocks,
+        "total_pages": total_pages if total_pages is not None else 0,
+        "pages_per_block": pages_per_block,
+        "wear_min": wear_stat["min"],
+        "wear_max": wear_stat["max"],
+        "wear_avg": round(wear_stat["avg"], 6),
+        "wear_std": round(wear_stat["std"], 6),
+        "trimmed_pages": total_trimmed,
+        "valid_pages": total_valid,
+        "invalid_pages": total_invalid,
+        # autotune용 신호(있으면 사용)
+        "transition_rate": round(snap.transition_rate, 6),
+        "reheat_rate": round(snap.reheat_rate, 6),
     }
 
-# ---------- public API ----------
-def summarize_metrics(sim) -> None:
-    ssd = sim.ssd
-    waf = (ssd.device_write_pages / ssd.host_write_pages) if ssd.host_write_pages else 0.0
-    avg_erase = sum(b.erase_count for b in ssd.blocks) / ssd.num_blocks
-    max_erase = max(b.erase_count for b in ssd.blocks)
-    min_erase = min(b.erase_count for b in ssd.blocks)
-    wear_delta = max_erase - min_erase
 
-    total_gc_ms = ssd.gc_total_time * 1000.0
-    avg_gc_ms = (total_gc_ms / ssd.gc_count) if ssd.gc_count else 0.0
-    p50_ms = _percentile(ssd.gc_durations, 0.50) * 1000.0
-    p95_ms = _percentile(ssd.gc_durations, 0.95) * 1000.0
-    p99_ms = _percentile(ssd.gc_durations, 0.99) * 1000.0
+# ------------------------------------------------------------
+# 요약 CSV 저장
+# ------------------------------------------------------------
 
-    wm = wear_moments(ssd.blocks)
+def append_summary_csv(path: str, sim: Any, meta: Optional[Dict[str, Any]] = None) -> None:
+    """요약 메트릭을 CSV에 append. 파일이 없으면 헤더를 생성.
+    - meta 딕셔너리를 받아 컬럼 병합(중복 키는 meta 우선)
+    - 정렬된 컬럼 순서로 저장(재현성)
+    """
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
 
-    print("=== Simulation Result ===")
-    print(f"Host writes (pages):   {ssd.host_write_pages:,}")
-    print(f"Device writes (pages): {ssd.device_write_pages:,}")
-    print(f"WAF (device/host):     {waf:.3f}")
-    print(f"GC count:              {ssd.gc_count}")
-    print(f"Avg erase per block:   {avg_erase:.2f} (min={min_erase}, max={max_erase}, Δ={wear_delta})")
-    print(f"Free pages remaining:  {ssd.free_pages} / {ssd.total_pages}")
-    print(f"GC time total / avg:   {total_gc_ms:.2f} ms / {avg_gc_ms:.4f} ms")
-    print(f"GC time p50/p95/p99:   {p50_ms:.4f} / {p95_ms:.4f} / {p99_ms:.4f} ms")
-    print(f"Wear std/CV/Gini:      {wm['wear_std']:.2f} / {wm['wear_cv']:.4f} / {wm['wear_gini']:.4f}")
+    metrics = collect_run_metrics(sim)
+    row = {**metrics}
+    if meta:
+        row.update(meta)
 
-SUMMARY_HEADER = [
-  "run_id","policy","ops","update_ratio","hot_ratio","hot_weight","seed",
-  "trim_enabled","trim_ratio","warmup_fill","bg_gc_every",
-  "thr_MBps","iops","lat_p50_ms","lat_p95_ms","lat_p99_ms",
-  "host_GB","media_GB","WAF","gc_events","gc_time_ms","wear_std",
-  "git_commit","app_version","ts","note"
-]
-
-def _num(x):
-  try:
-    if x is None: return float("nan")
-    if isinstance(x, (int, float)): return x
-    return float(x)
-  except Exception:
-    return float("nan")
-
-def append_summary_csv(path, sim, meta: dict):
-  """시뮬레이터 결과 + 메타를 표준 스키마로 CSV에 append."""
-  row = {
-    "run_id": meta.get("run_id") or f"{meta.get('policy','')}_{meta.get('seed','')}",
-    "policy": meta.get("policy"),
-    "ops": meta.get("ops"),
-    "update_ratio": meta.get("update_ratio"),
-    "hot_ratio": meta.get("hot_ratio"),
-    "hot_weight": meta.get("hot_weight"),
-    "seed": meta.get("seed"),
-    "trim_enabled": meta.get("trim_enabled", 0),
-    "trim_ratio": meta.get("trim_ratio", 0.0),
-    "warmup_fill": meta.get("warmup_fill", 0.0),
-    "bg_gc_every": meta.get("bg_gc_every", 0),
-    # --- 아래 값들은 sim 측에서 수집된 메트릭이 있다고 가정 ---
-    "thr_MBps": _num(getattr(getattr(sim, "metrics", sim), "thr_MBps", float("nan"))),
-    "iops": _num(getattr(getattr(sim, "metrics", sim), "iops", float("nan"))),
-    "lat_p50_ms": _num(getattr(getattr(sim, "metrics", sim), "lat_p50_ms", float("nan"))),
-    "lat_p95_ms": _num(getattr(getattr(sim, "metrics", sim), "lat_p95_ms", float("nan"))),
-    "lat_p99_ms": _num(getattr(getattr(sim, "metrics", sim), "lat_p99_ms", float("nan"))),
-    "host_GB": _num(getattr(getattr(sim, "metrics", sim), "host_GB", float("nan"))),
-    "media_GB": _num(getattr(getattr(sim, "metrics", sim), "media_GB", float("nan"))),
-    "WAF": _num(getattr(getattr(sim, "metrics", sim), "WAF", float("nan"))),
-    "gc_events": _num(getattr(getattr(sim, "metrics", sim), "gc_events", 0)),
-    "gc_time_ms": _num(getattr(getattr(sim, "metrics", sim), "gc_time_ms", 0)),
-    "wear_std": _num(getattr(getattr(sim, "metrics", sim), "wear_std", float("nan"))),
-    "git_commit": meta.get("git_commit", "unknown"),
-    "app_version": meta.get("app_version", "v1.0"),
-    "ts": meta.get("ts"),
-    "note": meta.get("note", ""),
-  }
-
-  # 스키마 검증
-  for k in SUMMARY_HEADER:
-    if k not in row:
-      raise ValueError(f"[summary] field missing: {k}")
-
-  os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-  write_header = (not os.path.exists(path)) or os.path.getsize(path) == 0
-  with open(path, "a", newline="", encoding="utf-8") as f:
-    w = csv.DictWriter(f, fieldnames=SUMMARY_HEADER)
+    # 기존 파일이 있으면 헤더를 그 파일의 순서로 유지, 없으면 알파벳 정렬
+    write_header = not os.path.exists(path)
     if write_header:
-      w.writeheader()
-    w.writerow(row)
+        fieldnames = sorted(row.keys())
+    else:
+        # 기존 헤더를 읽되, 새 컬럼이 생겼다면 뒤에 합쳐서 기록
+        with open(path, "r", newline="", encoding="utf-8") as f:
+            r = csv.reader(f)
+            try:
+                header = next(r)
+            except StopIteration:
+                header = []
+        fieldnames = list(header)
+        for k in row.keys():
+            if k not in fieldnames:
+                fieldnames.append(k)
 
-def save_trace_csv(path: str, sim) -> None:
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    cols = ["step","free_pages","device_writes","gc_count","gc_event"]
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f); w.writerow(cols)
-        for i in range(len(sim.trace["step"])):
-            w.writerow([sim.trace[c][i] for c in cols])
+    with open(path, "a", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        if write_header:
+            w.writeheader()
+        w.writerow(row)
 
-def save_gc_events_csv(path, sim):
-  """per-GC 이벤트 CSV 저장. 시뮬레이션 종료 후 호출."""
-  events = getattr(sim, "gc_event_log", None) or getattr(getattr(sim, "metrics", sim), "gc_event_log", None)
-  if not events:
-    # 비어도 파일은 생성(재현성 위해)
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w", newline="", encoding="utf-8") as f:
-      f.write("step,victim_id,moved_valid,freed_pages,elapsed_ms,cause\n")
-    return
 
-  os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-  with open(path, "w", newline="", encoding="utf-8") as f:
-    w = csv.writer(f)
-    w.writerow(["step","victim_id","moved_valid","freed_pages","elapsed_ms","cause"])
-    for e in events:
-      w.writerow([
-        e.get("step"), e.get("victim_id"), e.get("moved_valid"),
-        e.get("freed_pages"), e.get("elapsed_ms"), e.get("cause")
-      ])
+# ------------------------------------------------------------
+# (선택) 테이블 형태로 요약 행 생성 — 분석 스크립트에서 재사용 가능
+# ------------------------------------------------------------
 
-def summarize_gc_events(gc_events):
-    n = len(gc_events)
-    if n == 0:
-        return {"zgc_ratio": 0.0, "mv_p50": 0, "mv_p95": 0, "mv_p99": 0}
-    mv = sorted(ev.get("moved_valid", 0) for ev in gc_events)
-    zgc = sum(1 for x in mv if x == 0)
-    return {
-        "zgc_ratio": zgc / n,
-        "mv_p50": float(np.percentile(mv, 50)),
-        "mv_p95": float(np.percentile(mv, 95)),
-        "mv_p99": float(np.percentile(mv, 99)),
-    }
+def summary_row(sim: Any, meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    row = collect_run_metrics(sim)
+    if meta:
+        row.update(meta)
+    return row
