@@ -45,6 +45,8 @@ function initApp() {
   loadWatchlist();
   setupWatchlistForm();
   setupPrivacyToggle();
+  loadMarketCards();
+  setInterval(loadMarketCards, 60_000);
 }
 
 // -------------------- UI Helpers --------------------
@@ -64,8 +66,13 @@ function showTab(tabId) {
       }, 0);
     } else {
       ["sp500-treemap", "portfolio-treemap", "exchange-rate-chart"].forEach(id => {
-        Plotly.Plots.resize(document.getElementById(id));
-        forceRelayout(id);
+        const el = document.getElementById(id);
+        if (el) {
+          try {
+            Plotly.Plots.resize(el);
+          } catch (e) {}
+          forceRelayout(id);
+        }
       });
     }
   }
@@ -249,14 +256,6 @@ function loadExchangeRateChart() {
   });
 }
 
-// 반응형 리사이즈(보강)
-window.addEventListener("resize", () => {
-  ["sp500-treemap", "portfolio-treemap", "exchange-rate-chart", "profit-chart", "pie-chart"]
-    .forEach(id => {
-      const el = document.getElementById(id);
-      if (el) Plotly.Plots.resize(el);
-    });
-});
 
 // -------------------- Watchlist --------------------
 function loadWatchlist() {
@@ -354,6 +353,68 @@ function openStockDetail(ticker) {
         <p><strong>📊 PER:</strong> ${per}</p>
         <p><strong>📤 배당률:</strong> ${dividendYield.toFixed(2)}%</p>
       `;
+      // ---- Valuation: My fair price vs Finnhub target ----
+const valBox = document.createElement("div");
+valBox.style.marginTop = "12px";
+valBox.innerHTML = `<p>🔄 적정주가/목표가 계산중...</p>`;
+content.appendChild(valBox);
+
+// 현재가 숫자화(여기서는 data 스코프 안이니까 안전)
+const cur = (data.price?.c ?? null);
+const curNum = (cur === null || cur === "N/A") ? null : Number(cur);
+
+fetch(`/api/valuation?ticker=${ticker}`)
+  .then(r => r.json())
+  .then(v => {
+    if (v.error) {
+      valBox.innerHTML = `<p style="color:red;">❌ valuation error: ${v.error}</p>`;
+      return;
+    }
+
+    // my model
+    const myOk = v.my_model?.ok;
+    const myFair = myOk ? Number(v.my_model.fair_price) : null;
+
+    // finnhub target
+    const tMean = v.finnhub_target?.targetMean != null ? Number(v.finnhub_target.targetMean) : null;
+    const tHigh = v.finnhub_target?.targetHigh != null ? Number(v.finnhub_target.targetHigh) : null;
+    const tLow  = v.finnhub_target?.targetLow  != null ? Number(v.finnhub_target.targetLow)  : null;
+
+    function upsidePct(target) {
+      if (curNum == null || !isFinite(curNum) || target == null || !isFinite(target) || curNum === 0) return null;
+      return (target - curNum) / curNum * 100.0;
+    }
+
+    const upMy = upsidePct(myFair);
+    const upMean = upsidePct(tMean);
+
+    const fmt = (x) => (x == null || !isFinite(x)) ? "N/A" : x.toLocaleString(undefined, {maximumFractionDigits: 2});
+    const fmtPct = (x) => (x == null || !isFinite(x)) ? "N/A" : `${x >= 0 ? "+" : ""}${x.toFixed(1)}%`;
+
+    valBox.innerHTML = `
+      <hr>
+      <h5>🧠 적정주가/목표가 비교</h5>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="card">
+          <div class="card-title">내 모델 적정주가 (EV/발행주식수)</div>
+          <div class="card-value">$${fmt(myFair)}</div>
+          <div class="card-sub">현재가 대비: ${fmtPct(upMy)}</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Finnhub 목표가(평균)</div>
+          <div class="card-value">$${fmt(tMean)}</div>
+          <div class="card-sub">현재가 대비: ${fmtPct(upMean)}</div>
+        </div>
+      </div>
+      <div style="margin-top:8px; font-size:12px; opacity:0.8;">
+        Finnhub 범위: low $${fmt(tLow)} / high $${fmt(tHigh)}
+      </div>
+    `;
+  })
+  .catch(err => {
+    console.error("valuation fetch error:", err);
+    valBox.innerHTML = `<p style="color:red;">❌ valuation fetch failed</p>`;
+  });
 
       // KIS 캔들 차트
       const chartDiv = document.createElement("div");
@@ -419,4 +480,35 @@ function setupPrivacyToggle() {
     btn.textContent = hidden ? "🔒 정보 숨기기" : "🔓 정보 보이기";
     hidden = !hidden;
   });
+}
+async function loadMarketCards() {
+  try {
+    const res = await fetch("/api/market/indices");
+    const data = await res.json();
+
+    const root = document.getElementById("market-cards");
+    if (!root) return;
+
+    const cards = Object.values(data).map(item => {
+      if (!item.ok) {
+        return `
+          <div class="card">
+            <div class="card-title">${item.label}</div>
+            <div class="card-value">N/A</div>
+            <div class="card-sub">data unavailable</div>
+          </div>`;
+      }
+      const sign = item.change_pct >= 0 ? "+" : "";
+      return `
+        <div class="card">
+          <div class="card-title">${item.label}</div>
+          <div class="card-value">${item.last.toLocaleString()}</div>
+          <div class="card-sub">${sign}${item.change_pct.toFixed(2)}%</div>
+        </div>`;
+    }).join("");
+
+    root.innerHTML = cards;
+  } catch (e) {
+    console.error("loadMarketCards failed", e);
+  }
 }

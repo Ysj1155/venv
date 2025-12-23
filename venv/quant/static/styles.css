@@ -125,3 +125,39 @@ form button {
 .chart-card .modebar {
   right: 8px !important;
 }
+.market-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.card {
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+
+.card-title {
+  font-size: 13px;
+  opacity: 0.8;
+  margin-bottom: 6px;
+}
+
+.card-value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.card-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+@media (max-width: 900px) {
+  .market-cards {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+}
